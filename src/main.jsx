@@ -608,6 +608,17 @@ const selectFieldOptions = {
   usageViolation: ['Не выявлено', 'Выявлено', 'Требуется проверка', 'Следы попадания жидкости', 'Механическое повреждение'],
 };
 
+const requestStatusRoadmap = [
+  { status: 'Принято', role: 'Менеджер' },
+  { status: 'В диагностике', role: 'Инженер' },
+  { status: 'Согласование', role: 'Менеджер' },
+  { status: 'В ремонте', role: 'Инженер' },
+  { status: 'Ожидает запчасть', role: 'Кладовщик' },
+  { status: 'Готов к выдаче', role: 'Менеджер' },
+  { status: 'Выдано', role: 'Менеджер' },
+  { status: 'Закрыто', role: 'Администратор' },
+];
+
 function App() {
   const path = window.location.pathname;
   const detailMatch = path.match(/^\/requests\/([^/]+)$/);
@@ -680,6 +691,7 @@ function RequestsListPage() {
 
   const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
   const visibleRequests = filteredRequests.slice((page - 1) * pageSize, page * pageSize);
+  const nearbyPages = getNearbyPages(page, totalPages);
 
   useEffect(() => {
     return () => {
@@ -705,6 +717,11 @@ function RequestsListPage() {
     showTableSkeleton();
     setFilters((current) => ({ ...current, [name]: value }));
     setPage(1);
+  }
+
+  function goToPage(value) {
+    const nextPage = Math.min(totalPages, Math.max(1, Number(value) || 1));
+    setPage(nextPage);
   }
 
   function openRequest(requestId) {
@@ -859,15 +876,34 @@ function RequestsListPage() {
             </select>
           </label>
           <div className="pager">
-            <button className="icon-button" type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>
-              <ChevronLeft size={18} />
-            </button>
-            <span>
-              {page} / {totalPages}
-            </span>
-            <button
-              className="icon-button"
-              type="button"
+          <button className="icon-button" type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>
+            <ChevronLeft size={18} />
+          </button>
+          <div className="page-buttons">
+            {nearbyPages.map((pageNumber) => (
+              <button
+                className={`page-button ${pageNumber === page ? 'active' : ''}`}
+                type="button"
+                key={pageNumber}
+                onClick={() => setPage(pageNumber)}
+              >
+                {pageNumber}
+              </button>
+            ))}
+          </div>
+          <label className="page-jump">
+            <span>№</span>
+            <input
+              type="number"
+              min="1"
+              max={totalPages}
+              value={page}
+              onChange={(event) => goToPage(event.target.value)}
+            />
+          </label>
+          <button
+            className="icon-button"
+            type="button"
               disabled={page === totalPages}
               onClick={() => setPage(page + 1)}
             >
@@ -935,6 +971,15 @@ function RequestsListPage() {
   );
 }
 
+function getNearbyPages(currentPage, totalPages) {
+  const maxVisible = 5;
+  const half = Math.floor(maxVisible / 2);
+  const start = Math.max(1, Math.min(currentPage - half, totalPages - maxVisible + 1));
+  const end = Math.min(totalPages, start + maxVisible - 1);
+
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
 function RequestPage({ requestId }) {
   const request = repairRequests.find((item) => item.id === requestId) || repairRequests[0];
   const [parts, setParts] = useState(requestDetails.parts);
@@ -975,7 +1020,7 @@ function RequestPage({ requestId }) {
             </div>
           ) : (
             <div className="detail-meta">
-              <span className="status-pill">{request.status}</span>
+              <StatusRoadmap currentStatus={request.status} />
               <span>{request.client}</span>
             </div>
           )}
@@ -1069,6 +1114,37 @@ function RequestPage({ requestId }) {
         )}
       </div>
     </main>
+  );
+}
+
+function StatusRoadmap({ currentStatus }) {
+  const currentIndex = requestStatusRoadmap.findIndex((step) => step.status === currentStatus);
+
+  return (
+    <span className="status-roadmap">
+      <button className="status-pill status-trigger" type="button">
+        {currentStatus}
+      </button>
+      <span className="status-tooltip" role="tooltip">
+        <span className="status-tooltip-title">Этапы заявки</span>
+        <span className="status-steps">
+          {requestStatusRoadmap.map((step, index) => {
+            const isCurrent = step.status === currentStatus;
+            const isDone = currentIndex >= 0 && index < currentIndex;
+
+            return (
+              <span className={`status-step ${isCurrent ? 'current' : ''} ${isDone ? 'done' : ''}`} key={step.status}>
+                <span className="status-dot" />
+                <span className="status-step-text">
+                  <span>{step.status}</span>
+                  <span className="status-role">{step.role}</span>
+                </span>
+              </span>
+            );
+          })}
+        </span>
+      </span>
+    </span>
   );
 }
 

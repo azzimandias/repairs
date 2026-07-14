@@ -534,6 +534,138 @@ td {
   color: #344154;
 }
 
+.status-roadmap {
+  position: relative;
+  display: inline-flex;
+}
+
+.status-trigger {
+  min-height: 30px;
+  border: 1px solid #8fb3dd;
+  background: #ffffff;
+  color: #12315f;
+  box-shadow: 0 4px 12px rgb(37 99 180 / 12%);
+}
+
+.status-tooltip {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  display: grid;
+  gap: 10px;
+  width: 260px;
+  padding: 12px;
+  border: 1px solid #bfd4eb;
+  border-radius: 8px;
+  background: #fbfdff;
+  box-shadow: 0 16px 34px rgb(37 99 180 / 16%);
+  color: #25354a;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease;
+}
+
+.status-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  right: 24px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid #bfd4eb;
+  border-left: 1px solid #bfd4eb;
+  background: #fbfdff;
+  transform: rotate(45deg);
+}
+
+.status-roadmap:hover .status-tooltip,
+.status-roadmap:focus-within .status-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.status-tooltip-title {
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.status-steps {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.status-steps::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 5px;
+  width: 2px;
+  background: #c9d9eb;
+}
+
+.status-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 8px;
+  align-items: start;
+  color: #657386;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-dot {
+  position: relative;
+  z-index: 1;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #b8cce2;
+  border-radius: 50%;
+  background: #fbfdff;
+}
+
+.status-step.done {
+  color: #2e6fba;
+}
+
+.status-step.done .status-dot {
+  border-color: #2e6fba;
+  background: #2e6fba;
+}
+
+.status-step.current {
+  color: #102a56;
+  font-weight: 900;
+}
+
+.status-step.current .status-dot {
+  border-color: #2358d8;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgb(35 88 216 / 14%);
+}
+
+.status-step-text {
+  display: grid;
+  gap: 2px;
+}
+
+.status-role {
+  color: #6f8197;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-step.current .status-role {
+  color: #2d6fd3;
+}
+
 .empty-state {
   padding: 28px;
   color: #657386;
@@ -569,6 +701,51 @@ td {
 
 .pager span {
   min-width: 58px;
+  text-align: center;
+  font-weight: 800;
+}
+
+.page-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.page-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #c7d9ee;
+  border-radius: 7px;
+  background: #f7fbff;
+  color: #2c3a4d;
+  font-weight: 800;
+}
+
+.page-button.active {
+  border-color: #2d6fd3;
+  background: #ddecff;
+  color: #12315f;
+}
+
+.page-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #536175;
+  font-weight: 700;
+}
+
+.page-jump input {
+  width: 70px;
+  min-height: 34px;
+  border: 1px solid #c7d9ee;
+  border-radius: 7px;
+  background: #f7fbff;
+  color: #1f2c3d;
+  padding: 0 8px;
   text-align: center;
   font-weight: 800;
 }
