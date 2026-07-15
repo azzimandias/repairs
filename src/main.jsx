@@ -1,4 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
+import { AutoComplete, Button, Checkbox, ConfigProvider, DatePicker, Input, InputNumber, Segmented, Select } from 'antd';
+import ruRU from 'antd/locale/ru_RU';
+import dayjs from 'dayjs';
 import { createRoot } from 'react-dom/client';
 import {
   ArrowLeft,
@@ -9,523 +12,54 @@ import {
   Home,
   Plus,
   Search,
+  Trash2,
 } from 'lucide-react';
+import { fetchRepair, fetchRepairManagers, fetchRepairs, fetchSalesModels } from './api';
+import 'antd/dist/reset.css';
 import './styles.css';
 
 const homeUrl = import.meta.env.VITE_HOME_URL || '/';
-const managers = ['Анна Смирнова', 'Игорь Ковалев', 'Мария Орлова', 'Павел Лебедев'];
-const engineers = ['Дмитрий Волков', 'Сергей Никитин', 'Олег Морозов', 'Елена Соколова'];
+const emptyRequest = { id: '', status: '', status_id: null, equipment: '', client: '' };
 
-const repairRequests = [
-  {
-    id: 'R-2026-1042',
-    date: '2026-07-14',
-    uid: 'UID-98421',
-    equipment: 'Ноутбук Lenovo ThinkPad T14',
-    serialNumber: 'PF4Q7A2M',
-    client: 'ООО Альфа-Снаб',
-    manager: 'Анна Смирнова',
-    engineer: 'Дмитрий Волков',
-    issueDate: '',
-    price: 12800,
-    repairType: 'Платный',
-    status: 'В диагностике',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1041',
-    date: '2026-07-13',
-    uid: 'UID-98375',
-    equipment: 'Монитор Dell UltraSharp U2720Q',
-    serialNumber: 'CN0X9210',
-    client: 'ИП Воронцов',
-    manager: 'Игорь Ковалев',
-    engineer: 'Сергей Никитин',
-    issueDate: '2026-07-15',
-    price: 0,
-    repairType: 'Гарантийный',
-    status: 'Готов к выдаче',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1040',
-    date: '2026-07-12',
-    uid: 'UID-98290',
-    equipment: 'Принтер HP LaserJet Pro M404dn',
-    serialNumber: 'VNC3B78144',
-    client: 'ГК Север',
-    manager: 'Мария Орлова',
-    engineer: 'Олег Морозов',
-    issueDate: '',
-    price: 7300,
-    repairType: 'Платный',
-    status: 'Ожидает запчасть',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1039',
-    date: '2026-07-11',
-    uid: 'UID-98117',
-    equipment: 'Сканер Zebra DS2208',
-    serialNumber: 'ZBR2208-91',
-    client: 'Аптека Плюс',
-    manager: 'Павел Лебедев',
-    engineer: 'Елена Соколова',
-    issueDate: '2026-07-13',
-    price: 4200,
-    repairType: 'Платный',
-    status: 'Выдано',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1038',
-    date: '2026-07-10',
-    uid: 'UID-98062',
-    equipment: 'Системный блок iRU Office',
-    serialNumber: 'IRU-44A902',
-    client: 'ООО ТехноМаркет',
-    manager: 'Анна Смирнова',
-    engineer: 'Сергей Никитин',
-    issueDate: '',
-    price: 9600,
-    repairType: 'Гарантийный',
-    status: 'В ремонте',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1037',
-    date: '2026-07-09',
-    uid: 'UID-97920',
-    equipment: 'ИБП APC Back-UPS 950VA',
-    serialNumber: '3B2019X09217',
-    client: 'Медцентр Нова',
-    manager: 'Игорь Ковалев',
-    engineer: 'Дмитрий Волков',
-    issueDate: '',
-    price: 5600,
-    repairType: 'Платный',
-    status: 'Согласование',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1036',
-    date: '2026-07-08',
-    uid: 'UID-97840',
-    equipment: 'POS-терминал Атол Sigma 10',
-    serialNumber: 'AT-S10-44520',
-    client: 'Кофейня Бруно',
-    manager: 'Мария Орлова',
-    engineer: 'Олег Морозов',
-    issueDate: '2026-07-12',
-    price: 0,
-    repairType: 'Гарантийный',
-    status: 'Закрыто',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1035',
-    date: '2026-07-07',
-    uid: 'UID-97795',
-    equipment: 'Планшет Samsung Galaxy Tab Active',
-    serialNumber: 'R52T70Q4H7K',
-    client: 'Логистика Восток',
-    manager: 'Павел Лебедев',
-    engineer: 'Елена Соколова',
-    issueDate: '',
-    price: 11200,
-    repairType: 'Платный',
-    status: 'В работе',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1034',
-    date: '2026-07-06',
-    uid: 'UID-97721',
-    equipment: 'МФУ Canon i-SENSYS MF445dw',
-    serialNumber: 'CAN445-72411',
-    client: 'Школа 18',
-    manager: 'Анна Смирнова',
-    engineer: 'Сергей Никитин',
-    issueDate: '',
-    price: 6900,
-    repairType: 'Платный',
-    status: 'Ожидает клиента',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1033',
-    date: '2026-07-05',
-    uid: 'UID-97654',
-    equipment: 'Сервер Dell PowerEdge T40',
-    serialNumber: 'T40-9QXW33',
-    client: 'ДатаПром',
-    manager: 'Игорь Ковалев',
-    engineer: 'Дмитрий Волков',
-    issueDate: '2026-07-10',
-    price: 18400,
-    repairType: 'Платный',
-    status: 'Выдано',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1032',
-    date: '2026-07-04',
-    uid: 'UID-97588',
-    equipment: 'Ноутбук Asus ExpertBook B1',
-    serialNumber: 'ASB1-128X44',
-    client: 'ООО Линия',
-    manager: 'Мария Орлова',
-    engineer: 'Олег Морозов',
-    issueDate: '',
-    price: 0,
-    repairType: 'Гарантийный',
-    status: 'В диагностике',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1031',
-    date: '2026-07-03',
-    uid: 'UID-97512',
-    equipment: 'Касса Эвотор 7.3',
-    serialNumber: 'EV-73-77821',
-    client: 'Фермерская лавка',
-    manager: 'Павел Лебедев',
-    engineer: 'Елена Соколова',
-    issueDate: '',
-    price: 3800,
-    repairType: 'Платный',
-    status: 'Принято',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1030',
-    date: '2026-07-02',
-    uid: 'UID-97448',
-    equipment: 'Маршрутизатор MikroTik RB4011',
-    serialNumber: 'MT-RB4011-902',
-    client: 'ООО СетьПро',
-    manager: 'Анна Смирнова',
-    engineer: 'Дмитрий Волков',
-    issueDate: '',
-    price: 5100,
-    repairType: 'Платный',
-    status: 'В диагностике',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1029',
-    date: '2026-07-01',
-    uid: 'UID-97391',
-    equipment: 'Ноутбук Acer TravelMate P2',
-    serialNumber: 'NXVQZER005',
-    client: 'Бухгалтерия Контур',
-    manager: 'Игорь Ковалев',
-    engineer: 'Сергей Никитин',
-    issueDate: '',
-    price: 8800,
-    repairType: 'Платный',
-    status: 'Согласование',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1028',
-    date: '2026-06-30',
-    uid: 'UID-97320',
-    equipment: 'Терминал сбора данных Honeywell EDA52',
-    serialNumber: 'EDA52-4418K',
-    client: 'Склад 24',
-    manager: 'Мария Орлова',
-    engineer: 'Олег Морозов',
-    issueDate: '2026-07-04',
-    price: 0,
-    repairType: 'Гарантийный',
-    status: 'Готов к выдаче',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1027',
-    date: '2026-06-29',
-    uid: 'UID-97266',
-    equipment: 'Моноблок HP ProOne 440 G9',
-    serialNumber: 'HP440G9-724',
-    client: 'Клиника Доктор+',
-    manager: 'Павел Лебедев',
-    engineer: 'Елена Соколова',
-    issueDate: '',
-    price: 14300,
-    repairType: 'Платный',
-    status: 'В ремонте',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1026',
-    date: '2026-06-28',
-    uid: 'UID-97198',
-    equipment: 'Коммутатор TP-Link TL-SG3428',
-    serialNumber: 'SG3428-11K9',
-    client: 'Отель Северный',
-    manager: 'Анна Смирнова',
-    engineer: 'Сергей Никитин',
-    issueDate: '2026-07-02',
-    price: 6400,
-    repairType: 'Платный',
-    status: 'Выдано',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1025',
-    date: '2026-06-27',
-    uid: 'UID-97121',
-    equipment: 'Промышленный планшет Getac F110',
-    serialNumber: 'GTC-F110-5501',
-    client: 'ГеоСтрой',
-    manager: 'Игорь Ковалев',
-    engineer: 'Дмитрий Волков',
-    issueDate: '',
-    price: 0,
-    repairType: 'Гарантийный',
-    status: 'Ожидает запчасть',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1024',
-    date: '2026-06-26',
-    uid: 'UID-97080',
-    equipment: 'Принтер этикеток TSC TE200',
-    serialNumber: 'TSC-TE200-812',
-    client: 'Маркет Фреш',
-    manager: 'Мария Орлова',
-    engineer: 'Олег Морозов',
-    issueDate: '',
-    price: 3900,
-    repairType: 'Платный',
-    status: 'Принято',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1023',
-    date: '2026-06-25',
-    uid: 'UID-97014',
-    equipment: 'Проектор Epson EB-FH52',
-    serialNumber: 'EPS-FH52-331',
-    client: 'Конференц Холл',
-    manager: 'Павел Лебедев',
-    engineer: 'Елена Соколова',
-    issueDate: '2026-06-30',
-    price: 7200,
-    repairType: 'Платный',
-    status: 'Закрыто',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1022',
-    date: '2026-06-24',
-    uid: 'UID-96950',
-    equipment: 'Ноутбук Dell Latitude 5440',
-    serialNumber: 'DL5440-8X21',
-    client: 'Юридическое бюро Право',
-    manager: 'Анна Смирнова',
-    engineer: 'Дмитрий Волков',
-    issueDate: '',
-    price: 10500,
-    repairType: 'Платный',
-    status: 'В работе',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1021',
-    date: '2026-06-23',
-    uid: 'UID-96872',
-    equipment: 'ККТ Штрих-М-01Ф',
-    serialNumber: 'SHT-01F-4112',
-    client: 'Пекарня Утро',
-    manager: 'Игорь Ковалев',
-    engineer: 'Сергей Никитин',
-    issueDate: '',
-    price: 0,
-    repairType: 'Гарантийный',
-    status: 'В диагностике',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1020',
-    date: '2026-06-22',
-    uid: 'UID-96803',
-    equipment: 'МФУ Kyocera ECOSYS M2040dn',
-    serialNumber: 'KYO2040-992',
-    client: 'Администрация района',
-    manager: 'Мария Орлова',
-    engineer: 'Олег Морозов',
-    issueDate: '2026-06-28',
-    price: 8200,
-    repairType: 'Платный',
-    status: 'Выдано',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1019',
-    date: '2026-06-21',
-    uid: 'UID-96744',
-    equipment: 'Сервер HPE ProLiant ML30',
-    serialNumber: 'HPEML30-71A',
-    client: 'Интегратор Софт',
-    manager: 'Павел Лебедев',
-    engineer: 'Елена Соколова',
-    issueDate: '',
-    price: 19600,
-    repairType: 'Платный',
-    status: 'Согласование',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1018',
-    date: '2026-06-20',
-    uid: 'UID-96683',
-    equipment: 'Сканер Canon DR-C240',
-    serialNumber: 'DRC240-5587',
-    client: 'Архив Сервис',
-    manager: 'Анна Смирнова',
-    engineer: 'Сергей Никитин',
-    issueDate: '',
-    price: 4700,
-    repairType: 'Платный',
-    status: 'Ожидает клиента',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1017',
-    date: '2026-06-19',
-    uid: 'UID-96612',
-    equipment: 'POS-моноблок Posiflex XT-3815',
-    serialNumber: 'POS3815-207',
-    client: 'Ресторан Маяк',
-    manager: 'Игорь Ковалев',
-    engineer: 'Дмитрий Волков',
-    issueDate: '',
-    price: 0,
-    repairType: 'Гарантийный',
-    status: 'В ремонте',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1016',
-    date: '2026-06-18',
-    uid: 'UID-96549',
-    equipment: 'Ноутбук MSI Modern 15',
-    serialNumber: 'MSIM15-8742',
-    client: 'Студия ДизайнПро',
-    manager: 'Мария Орлова',
-    engineer: 'Олег Морозов',
-    issueDate: '2026-06-25',
-    price: 13200,
-    repairType: 'Платный',
-    status: 'Закрыто',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1015',
-    date: '2026-06-17',
-    uid: 'UID-96488',
-    equipment: 'ИБП Ippon Back Power Pro II 600',
-    serialNumber: 'IPP600-4521',
-    client: 'Апарт-отель Река',
-    manager: 'Павел Лебедев',
-    engineer: 'Елена Соколова',
-    issueDate: '',
-    price: 3100,
-    repairType: 'Платный',
-    status: 'Принято',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1014',
-    date: '2026-06-16',
-    uid: 'UID-96420',
-    equipment: 'Монитор LG 27QN880-B',
-    serialNumber: 'LG27QN-1198',
-    client: 'Финанс Групп',
-    manager: 'Анна Смирнова',
-    engineer: 'Дмитрий Волков',
-    issueDate: '',
-    price: 0,
-    repairType: 'Гарантийный',
-    status: 'В диагностике',
-    audience: 'engineer',
-  },
-  {
-    id: 'R-2026-1013',
-    date: '2026-06-15',
-    uid: 'UID-96358',
-    equipment: 'Док-станция Lenovo USB-C Dock Gen 2',
-    serialNumber: 'LNDCK2-670',
-    client: 'Агентство МедиаЛайн',
-    manager: 'Игорь Ковалев',
-    engineer: 'Сергей Никитин',
-    issueDate: '2026-06-19',
-    price: 2500,
-    repairType: 'Платный',
-    status: 'Выдано',
-    audience: 'manager',
-  },
-  {
-    id: 'R-2026-1012',
-    date: '2026-06-14',
-    uid: 'UID-96284',
-    equipment: 'Тонкий клиент HP t640',
-    serialNumber: 'HPT640-9034',
-    client: 'Колл-центр Диалог',
-    manager: 'Мария Орлова',
-    engineer: 'Олег Морозов',
-    issueDate: '',
-    price: 6100,
-    repairType: 'Платный',
-    status: 'Ожидает запчасть',
-    audience: 'engineer',
-  },
-];
-
-const requestDetails = {
+const emptyRequestDetails = {
   equipment: {
-    model: 'Ноутбук Lenovo ThinkPad T14',
-    serialNumber: 'PF4Q7A2M',
-    declaredFault: 'Не включается после обновления BIOS',
-    kit: 'Ноутбук, блок питания, сумка',
-    externalState: 'Следы эксплуатации, без трещин корпуса',
-    pickupPoint: 'Москва, Ленинский пр-т, 42',
-    sellerName: 'ООО ТехПоставка',
-    saleOrRepairDate: '2025-11-18',
-    invoiceNumber: 'НК-88421',
+    model: '',
+    serialNumber: '',
+    declaredFault: '',
+    kit: '',
+    externalState: '',
+    pickupPoint: '',
+    sellerName: '',
+    saleOrRepairDate: '',
+    invoiceNumber: '',
   },
   client: {
-    companyName: 'ООО Альфа-Снаб',
-    city: 'Москва',
-    contactPerson: 'Виктор Климов',
-    email: 'klimov@alfa-snab.example',
-    phone: '+7 495 120-44-18',
-    postalAddress: '117105, Москва, Варшавское ш., 12',
-    requestManager: 'Анна Смирнова',
-    approvedWorks: 'Диагностика, восстановление BIOS, проверка питания',
+    companyName: '',
+    city: '',
+    contactPerson: '',
+    email: '',
+    phone: '',
+    postalAddress: '',
+    requestManager: '',
+    approvedWorks: '',
   },
   repair: {
-    engineer: 'Дмитрий Волков',
-    faultDescription: 'Питание на плате присутствует, POST не проходит',
-    faultReasons: 'Повреждение прошивки BIOS',
-    expectedRepair: 'Прошивка BIOS программатором, тестирование',
-    repair: 'Ожидает подтверждения стоимости',
-    usageViolation: 'Не выявлено',
-    diagnosisMinutes: '45',
-    comment: 'Клиент просил сохранить накопитель без форматирования',
-    diagnosisTotal: '1800',
-    repairMinutes: '90',
-    repairTotal: '11000',
-    spareWaitingComment: 'Запчасти не требуются',
-    diagnosisAct: 'АД-1042.pdf',
+    engineer: '',
+    faultDescription: '',
+    faultReasons: '',
+    expectedRepair: '',
+    repair: '',
+    usageViolation: '',
+    diagnosisMinutes: '',
+    comment: '',
+    diagnosisTotal: '',
+    repairMinutes: '',
+    repairTotal: '',
+    spareWaitingComment: '',
+    diagnosisAct: '',
     workAct: '',
   },
-  parts: [
-    { source: 'Наша', model: 'BIOS chip W25Q128', qty: 1, stock: 8, price: 650, comment: 'Резерв на случай замены' },
-    { source: 'Покупная', model: 'Термопрокладка 1 мм', qty: 2, stock: 0, price: 240, comment: 'После диагностики охлаждения' },
-  ],
+  parts: [],
 };
 
 const fieldLabels = {
@@ -562,62 +96,195 @@ const fieldLabels = {
   workAct: 'Акт работ',
 };
 
+const dateFieldNames = new Set(['saleOrRepairDate']);
+
 const selectFieldOptions = {
-  model: [
-    'Ноутбук Lenovo ThinkPad T14',
-    'Сканер Zebra DS2208',
-    'Монитор Dell UltraSharp U2720Q',
-    'Принтер HP LaserJet Pro M404dn',
-    'POS-терминал Атол Sigma 10',
-  ],
-  pickupPoint: [
-    'Москва, Ленинский пр-т, 42',
-    'Москва, Варшавское ш., 12',
-    'Санкт-Петербург, Лиговский пр-т, 88',
-    'Казань, ул. Пушкина, 17',
-  ],
-  engineer: engineers,
-  faultDescription: [
-    'Питание на плате присутствует, POST не проходит',
-    'Устройство не включается',
-    'Не определяется компьютером',
-    'Периодически теряет питание',
-    'Не печатает / не сканирует',
-  ],
-  faultReasons: [
-    'Повреждение прошивки BIOS',
-    'Неисправность цепи питания',
-    'Механическое повреждение',
-    'Износ расходных материалов',
-    'Требуется дополнительная диагностика',
-  ],
-  expectedRepair: [
-    'Прошивка BIOS программатором, тестирование',
-    'Замена неисправного модуля',
-    'Восстановление цепи питания',
-    'Чистка, профилактика, тестирование',
-    'Согласование ремонта с клиентом',
-  ],
-  repair: [
-    'Ожидает подтверждения стоимости',
-    'Выполнен',
-    'В работе',
-    'Ожидает запчасть',
-    'Отказ клиента от ремонта',
-  ],
-  usageViolation: ['Не выявлено', 'Выявлено', 'Требуется проверка', 'Следы попадания жидкости', 'Механическое повреждение'],
+  model: [],
+  pickupPoint: [],
+  engineer: [],
+  faultDescription: [],
+  faultReasons: [],
+  expectedRepair: [],
+  repair: [],
+  usageViolation: [],
 };
 
 const requestStatusRoadmap = [
-  { status: 'Принято', role: 'Менеджер' },
-  { status: 'В диагностике', role: 'Инженер' },
-  { status: 'Согласование', role: 'Менеджер' },
-  { status: 'В ремонте', role: 'Инженер' },
-  { status: 'Ожидает запчасть', role: 'Кладовщик' },
-  { status: 'Готов к выдаче', role: 'Менеджер' },
-  { status: 'Выдано', role: 'Менеджер' },
-  { status: 'Закрыто', role: 'Администратор' },
+  { id: 100, status: 'Заявка создана', role: 'Склад' },
+  { id: 200, status: 'Заявка обработана', role: 'Склад' },
+  { id: 300, status: 'Принято в сервис-центр', role: 'Сервис-центр' },
+  { id: 400, status: 'Диагностика проведена', role: 'Сервис-центр' },
+  { id: 450, status: 'Акт диагностики отправлен', role: 'Менеджер' },
+  { id: 500, status: 'Объём работы согласован', role: 'Менеджер' },
+  { id: 550, status: 'Запчасти получены', role: 'Сервис-центр' },
+  { id: 600, status: 'Работа завершена', role: 'Сервис-центр' },
+  { id: 700, status: 'Счёт выставлен', role: 'Администратор' },
+  { id: 800, status: 'Счёт оплачен', role: 'Администратор' },
 ];
+
+function mapBackendRepair(repair) {
+  const modelName = Array.isArray(repair.model) ? repair.model[0]?.name_seo : repair.model?.name_seo;
+  const statusName = Array.isArray(repair.status) ? repair.status[0]?.name : repair.status?.name;
+  const engineerName = Array.isArray(repair.engin) ? formatPerson(repair.engin[0]) : formatPerson(repair.engin);
+  const managerName =
+    repair.manager_name ||
+    (Array.isArray(repair.manager) ? formatPerson(repair.manager[0]) : formatPerson(repair.manager));
+  const repairCategory = Number(repair.category_repairs);
+
+  return {
+    ...repair,
+    id: repair.id,
+    date: repair.date || repair.created_at || '',
+    uid: repair.uid || '',
+    equipment: modelName || repair.model_name || repair.name || '-',
+    serialNumber: repair.sn || '',
+    client: repair.client_org_name || repair.client_name || '-',
+    manager: managerName || '-',
+    engineer: engineerName || '-',
+    issueDate: repair.date_end || '',
+    price: Number(repair.price || 0),
+    repairType: repairCategory === 2 || repairCategory === 3 ? 'Гарантийный' : 'Платный',
+    status: statusName || String(repair.status_id || '-'),
+    audience: repair.primary ? 'manager' : 'engineer',
+  };
+}
+
+function mapBackendRepairDetails(repair) {
+  const summary = mapBackendRepair(repair);
+
+  return {
+    equipment: {
+      model: summary.equipment,
+      serialNumber: summary.serialNumber,
+      declaredFault: repair.defect_clients || repair.defect_note || repair.client_defect_note || '',
+      kit: repair.complete_set || repair.complect || repair.equipment_set || '',
+      externalState: repair.condition || repair.external_state || repair.appearance || '',
+      pickupPoint: repair.point_of_delivery || repair.conveyance_name || repair.conveyance?.name || '',
+      sellerName: repair.sale_org_name || '',
+      saleOrRepairDate: formatBackendDateInput(repair.sale_date || repair.date_sale || repair.date),
+      invoiceNumber: repair.sale_invoice || repair.invoice_number || repair.number_invoice || '',
+    },
+    client: {
+      companyName: repair.client_org_name || summary.client,
+      city: repair.client_sity || repair.client_city || '',
+      contactPerson: repair.client_fio_contact || repair.client_contact_name || repair.contact_person || '',
+      email: repair.client_email || repair.email || '',
+      phone: repair.client_tel || repair.client_phone || repair.phone || '',
+      postalAddress: repair.client_post || repair.client_address || repair.post_address || '',
+      requestManager: summary.manager,
+      approvedWorks: repair.approved_work_name || String(repair.approved_work || ''),
+    },
+    repair: {
+      engineer: summary.engineer,
+      faultDescription: repair.engin_defect_note || '',
+      faultReasons: repair.probable_causes_note || '',
+      expectedRepair: repair.engin_list_repairs_note || '',
+      repair: repair.act_text_job || repair.repair_note || repair.repairs_note || '',
+      usageViolation: repair.engin_foul_comment || repair.violation_note || repair.operating_rules_violation || '',
+      diagnosisMinutes: repair.engin_time_job_diagnostics || repair.diagnostics_work_time || repair.diagnosis_minutes || '',
+      comment: repair.engin_comment || repair.client_commet || repair.comment || '',
+      diagnosisTotal: repair.diagnostics_price || repair.diagnosis_total || '',
+      repairMinutes: repair.engin_time_job || repair.repair_work_time || repair.repair_minutes || '',
+      repairTotal: repair.engin_price || repair.repair_price || repair.repair_total || '',
+      spareWaitingComment: repair.wait_spares_comment || '',
+      diagnosisAct: repair.act_text_diagnostic || repair.diagnostics_act || '',
+      workAct: repair.act_text_job || repair.work_act || '',
+    },
+    parts: Array.isArray(repair.spares) ? repair.spares.map(mapBackendSpare) : [],
+  };
+}
+
+function formatPerson(person) {
+  if (!person) {
+    return '';
+  }
+
+  return [person.surname, person.name, person.secondname].filter(Boolean).join(' ');
+}
+
+function formatBackendDate(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'number') {
+    return formatDate(value * 1000);
+  }
+
+  if (/^\d+$/.test(String(value))) {
+    return formatDate(Number(value) * 1000);
+  }
+
+  return value;
+}
+
+function formatBackendDateInput(value) {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'number') {
+    return new Date(value * 1000).toISOString().slice(0, 10);
+  }
+
+  if (/^\d+$/.test(String(value))) {
+    return new Date(Number(value) * 1000).toISOString().slice(0, 10);
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(value))) {
+    return String(value).slice(0, 10);
+  }
+
+  return value;
+}
+
+function mapBackendSpare(spare) {
+  return {
+    id: spare.id,
+    type: spare.type,
+    source: Number(spare.type) === 0 ? 'Наша' : 'Покупная',
+    modelId: spare.model_id || '',
+    model: spare.name || spare.model_name || String(spare.model_id || ''),
+    qty: spare.count || 1,
+    stock: spare.stock_count ?? spare.count_sklad ?? 0,
+    price: spare.price || 0,
+    comment: spare.comment || '',
+  };
+}
+
+function buildBackendFilters(filters) {
+  const type = filters.unfinished ? 3 : filters.audience === 'manager' ? 1 : filters.audience === 'engineer' ? 2 : 0;
+
+  return {
+    type,
+    'category-repair': filters.repairType === 'Гарантийный' ? 2 : filters.repairType === 'Платный' ? 1 : 0,
+    manager: Number(filters.manager) || 0,
+    query: filters.search,
+  };
+}
+
+function mapManagerOption(manager) {
+  return {
+    id: manager.id,
+    label:
+      manager.label ||
+      [manager.surname, manager.name, manager.secondname]
+        .filter(Boolean)
+        .join(' ') ||
+      String(manager.id),
+  };
+}
+
+function mapSalesModelOption(model) {
+  return {
+    id: model.id ?? model.model_id ?? model.value ?? model.name ?? model.name_seo,
+    label: model.name_seo || model.name || model.label || String(model.id ?? ''),
+  };
+}
+
+function isOwnPart(part) {
+  return part.source === 'Наша' || part.source === 'РќР°С€Р°' || Number(part.type) === 0;
+}
 
 function App() {
   const path = window.location.pathname;
@@ -628,6 +295,25 @@ function App() {
   }
 
   return <RequestsListPage />;
+}
+
+function AppRoot() {
+  return (
+    <ConfigProvider
+      locale={ruRU}
+      theme={{
+        token: {
+          colorPrimary: '#2d6fd3',
+          borderRadius: 7,
+          colorBgContainer: '#f7fbff',
+          colorBorder: '#c7d9ee',
+          fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        },
+      }}
+    >
+      <App />
+    </ConfigProvider>
+  );
 }
 
 function GlobalHeader() {
@@ -650,7 +336,6 @@ function GlobalHeader() {
 }
 
 function RequestsListPage() {
-  const loadingTimerRef = useRef(null);
   const [filters, setFilters] = useState({
     audience: 'all',
     repairType: 'all',
@@ -658,63 +343,99 @@ function RequestsListPage() {
     unfinished: false,
     search: '',
   });
+  const [requests, setRequests] = useState([]);
+  const [managerOptions, setManagerOptions] = useState([]);
+  const [paginationMeta, setPaginationMeta] = useState({
+    total: 0,
+    lastPage: 1,
+    from: 0,
+    to: 0,
+  });
+  const [loadError, setLoadError] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(30);
   const [isLoading, setIsLoading] = useState(false);
 
-  const filteredRequests = useMemo(() => {
-    return repairRequests.filter((request) => {
-      const text = [
-        request.date,
-        request.uid,
-        request.equipment,
-        request.serialNumber,
-        request.client,
-        request.manager,
-        request.engineer,
-        request.repairType,
-        request.status,
-      ]
-        .join(' ')
-        .toLowerCase();
-
-      const closed = ['Выдано', 'Закрыто'].includes(request.status);
-      const byAudience = filters.audience === 'all' || request.audience === filters.audience;
-      const byType = filters.repairType === 'all' || request.repairType === filters.repairType;
-      const byManager = filters.manager === 'all' || request.manager === filters.manager;
-      const byUnfinished = !filters.unfinished || !closed;
-      const bySearch = !filters.search || text.includes(filters.search.toLowerCase().trim());
-
-      return byAudience && byType && byManager && byUnfinished && bySearch;
-    });
-  }, [filters]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / pageSize));
-  const visibleRequests = filteredRequests.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = Math.max(1, paginationMeta.lastPage);
+  const visibleRequests = requests;
   const nearbyPages = getNearbyPages(page, totalPages);
 
   useEffect(() => {
+    document.title = 'Сервис-центр | Заявки на ремонт';
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetchRepairManagers()
+      .then((items) => {
+        if (!ignore) {
+          setManagerOptions(items.map(mapManagerOption));
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setManagerOptions((current) => current);
+        }
+      });
+
     return () => {
-      if (loadingTimerRef.current) {
-        clearTimeout(loadingTimerRef.current);
-      }
+      ignore = true;
     };
   }, []);
 
-  function showTableSkeleton() {
-    if (loadingTimerRef.current) {
-      clearTimeout(loadingTimerRef.current);
-    }
+  useEffect(() => {
+    let ignore = false;
 
     setIsLoading(true);
-    loadingTimerRef.current = setTimeout(() => {
-      setIsLoading(false);
-      loadingTimerRef.current = null;
-    }, 450);
-  }
+
+    fetchRepairs({
+      page,
+      perPage: pageSize,
+      direction: 1,
+      orderby: 'date',
+      fillters: buildBackendFilters(filters),
+    })
+      .then((result) => {
+        if (ignore) {
+          return;
+        }
+
+        setRequests(result.data.map(mapBackendRepair));
+        setPaginationMeta({
+          total: result.total,
+          lastPage: result.last_page,
+          from: result.from,
+          to: result.to,
+        });
+        setLoadError('');
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+
+        setRequests([]);
+        setPaginationMeta({
+          total: 0,
+          lastPage: 1,
+          from: 0,
+          to: 0,
+        });
+        setLoadError(error.message || 'Ошибка загрузки заявок');
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [filters, page, pageSize]);
 
   function updateFilter(name, value) {
-    showTableSkeleton();
     setFilters((current) => ({ ...current, [name]: value }));
     setPage(1);
   }
@@ -741,7 +462,7 @@ function RequestsListPage() {
       'Тип ремонта',
       'Статус заявки',
     ];
-    const rows = filteredRequests.map((request) => [
+    const rows = requests.map((request) => [
       request.date,
       request.uid,
       request.equipment,
@@ -786,131 +507,121 @@ function RequestsListPage() {
             <h1>Заявки на ремонт</h1>
           </div>
           <div className="topbar-actions">
-            <button className="button secondary" type="button" onClick={exportExcel}>
-              <Download size={18} />
+            <Button className="app-button" icon={<Download size={16} />} onClick={exportExcel}>
               Excel
-            </button>
-            <button className="button primary" type="button">
-              <FilePlus2 size={18} />
+            </Button>
+            <Button className="app-button" type="primary" icon={<FilePlus2 size={16} />}>
               Создать заявку
-            </button>
+            </Button>
           </div>
         </header>
 
         <section className="toolbar" aria-label="Фильтры заявок">
-          <div className="segmented">
-            <button
-              className={filters.audience === 'all' ? 'active' : ''}
-              type="button"
-              onClick={() => updateFilter('audience', 'all')}
-            >
-              Все
-            </button>
-            <button
-              className={filters.audience === 'manager' ? 'active' : ''}
-              type="button"
-              onClick={() => updateFilter('audience', 'manager')}
-            >
-              Для менеджера
-            </button>
-            <button
-              className={filters.audience === 'engineer' ? 'active' : ''}
-              type="button"
-              onClick={() => updateFilter('audience', 'engineer')}
-            >
-              Для инженера
-            </button>
-          </div>
+          <Segmented
+            className="segmented"
+            value={filters.audience}
+            onChange={(value) => updateFilter('audience', value)}
+            options={[
+              { value: 'all', label: 'Все' },
+              { value: 'manager', label: 'Для менеджера' },
+              { value: 'engineer', label: 'Для инженера' },
+            ]}
+          />
 
-          <label className="checkbox-filter">
-            <input
-              type="checkbox"
+        <label className="checkbox-filter">
+            <Checkbox
               checked={filters.unfinished}
               onChange={(event) => updateFilter('unfinished', event.target.checked)}
             />
             Незаконченные
           </label>
 
-          <select value={filters.repairType} onChange={(event) => updateFilter('repairType', event.target.value)}>
-            <option value="all">Любой тип ремонта</option>
-            <option value="Платный">Платный</option>
-            <option value="Гарантийный">Гарантийный</option>
-          </select>
+          <Select
+            value={filters.repairType}
+            onChange={(value) => updateFilter('repairType', value)}
+            options={[
+              { value: 'all', label: 'Любой тип ремонта' },
+              { value: 'Платный', label: 'Платный' },
+              { value: 'Гарантийный', label: 'Гарантийный' },
+            ]}
+          />
 
-          <select value={filters.manager} onChange={(event) => updateFilter('manager', event.target.value)}>
-            <option value="all">Все менеджеры</option>
-            {managers.map((manager) => (
-              <option value={manager} key={manager}>
-                {manager}
-              </option>
-            ))}
-          </select>
+          <Select
+            showSearch
+            value={filters.manager}
+            onChange={(value) => updateFilter('manager', value)}
+            optionFilterProp="label"
+            options={[
+              { value: 'all', label: 'Все менеджеры' },
+              ...managerOptions.map((manager) => ({ value: String(manager.id), label: manager.label })),
+            ]}
+          />
 
-          <label className="search-field">
-            <Search size={18} />
-            <input
-              type="search"
-              placeholder="Поиск по тексту"
-              value={filters.search}
-              onChange={(event) => updateFilter('search', event.target.value)}
-            />
-          </label>
+          <Input
+            className="search-field"
+            prefix={<Search size={18} />}
+            allowClear
+            placeholder="Поиск по тексту"
+            value={filters.search}
+            onChange={(event) => updateFilter('search', event.target.value)}
+          />
         </section>
 
         <section className="table-pagination" aria-label="Пагинация заявок">
           <span>
-            Найдено: <strong>{filteredRequests.length}</strong>
+            Найдено: <strong>{paginationMeta.total}</strong>
+            {paginationMeta.total > 0 && (
+              <span className="page-range">
+                {paginationMeta.from}-{paginationMeta.to}
+              </span>
+            )}
           </span>
           <label className="page-size">
             Строк на странице
-            <select
+            <Select
               value={pageSize}
-              onChange={(event) => {
-                setPageSize(Number(event.target.value));
+              onChange={(value) => {
+                setPageSize(Number(value));
                 setPage(1);
               }}
-            >
-              <option value="30">30</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-            </select>
+              options={[
+                { value: 30, label: '30' },
+                { value: 50, label: '50' },
+                { value: 100, label: '100' },
+              ]}
+            />
           </label>
           <div className="pager">
-          <button className="icon-button" type="button" disabled={page === 1} onClick={() => setPage(page - 1)}>
-            <ChevronLeft size={18} />
-          </button>
+          <Button className="icon-button" disabled={page === 1} icon={<ChevronLeft size={18} />} onClick={() => setPage(page - 1)} />
           <div className="page-buttons">
             {nearbyPages.map((pageNumber) => (
-              <button
+              <Button
                 className={`page-button ${pageNumber === page ? 'active' : ''}`}
-                type="button"
                 key={pageNumber}
                 onClick={() => setPage(pageNumber)}
               >
                 {pageNumber}
-              </button>
+              </Button>
             ))}
           </div>
           <label className="page-jump">
             <span>№</span>
-            <input
-              type="number"
-              min="1"
+            <InputNumber
+              min={1}
               max={totalPages}
               value={page}
-              onChange={(event) => goToPage(event.target.value)}
+              onChange={(value) => goToPage(value)}
             />
           </label>
-          <button
+          <Button
             className="icon-button"
-            type="button"
-              disabled={page === totalPages}
-              onClick={() => setPage(page + 1)}
-            >
-              <ChevronRight size={18} />
-            </button>
+            disabled={page === totalPages}
+            icon={<ChevronRight size={18} />}
+            onClick={() => setPage(page + 1)}
+          />
           </div>
         </section>
+        {loadError && <div className="load-error">{loadError}</div>}
       </div>
 
       <section className="table-wrap">
@@ -981,15 +692,86 @@ function getNearbyPages(currentPage, totalPages) {
 }
 
 function RequestPage({ requestId }) {
-  const request = repairRequests.find((item) => item.id === requestId) || repairRequests[0];
-  const [parts, setParts] = useState(requestDetails.parts);
-  const isLoading = false;
+  const [request, setRequest] = useState(emptyRequest);
+  const [details, setDetails] = useState(emptyRequestDetails);
+  const [parts, setParts] = useState([]);
+  const [salesModels, setSalesModels] = useState([]);
+  const [loadError, setLoadError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    document.title = `Сервис-центр | ${requestId}`;
+  }, [requestId]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    setIsLoading(true);
+
+    fetchRepair(requestId)
+      .then((repair) => {
+        if (ignore || !repair) {
+          return;
+        }
+
+        const mappedRequest = mapBackendRepair(repair);
+        const mappedDetails = mapBackendRepairDetails(repair);
+
+        setRequest(mappedRequest);
+        setDetails(mappedDetails);
+        setParts(mappedDetails.parts);
+        setLoadError('');
+      })
+      .catch(() => {
+        if (!ignore) {
+          setRequest(emptyRequest);
+          setDetails(emptyRequestDetails);
+          setParts([]);
+          setLoadError('Ошибка загрузки заявки');
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [requestId]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetchSalesModels()
+      .then((models) => {
+        if (!ignore) {
+          setSalesModels(models.map(mapSalesModelOption));
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setSalesModels([]);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   function addPart(source) {
+    const isOwn = source === 'Наша';
+
     setParts((current) => [
       ...current,
-      { source, model: '', qty: 1, stock: source === 'Наша' ? 0 : '-', price: 0, comment: '' },
+      { source, type: isOwn ? 0 : 1, modelId: '', model: '', qty: 1, stock: isOwn ? 0 : '-', price: 0, comment: '' },
     ]);
+  }
+
+  function removePart(index) {
+    setParts((current) => current.filter((_, partIndex) => partIndex !== index));
   }
 
   return (
@@ -998,9 +780,7 @@ function RequestPage({ requestId }) {
         <GlobalHeader />
         <header className="topbar detail-header">
           <div className="detail-title">
-            <button className="icon-button back-button" type="button" onClick={() => window.close()}>
-              <ArrowLeft size={18} />
-            </button>
+            <Button className="icon-button back-button" icon={<ArrowLeft size={18} />} onClick={() => window.close()} />
             {isLoading ? (
               <div className="detail-title-skeleton">
                 <span className="skeleton-line short" />
@@ -1020,7 +800,7 @@ function RequestPage({ requestId }) {
             </div>
           ) : (
             <div className="detail-meta">
-              <StatusRoadmap currentStatus={request.status} />
+              <StatusRoadmap currentStatus={request.status} currentStatusId={request.status_id} />
               <span>{request.client}</span>
             </div>
           )}
@@ -1028,30 +808,29 @@ function RequestPage({ requestId }) {
       </div>
 
       <div className="detail-content-scroll">
+        {loadError && <div className="load-error">{loadError}</div>}
         {isLoading ? (
           <DetailSkeleton />
         ) : (
           <div className="detail-grid">
-            <FormBlock title="Оборудование" fields={requestDetails.equipment} />
-            <FormBlock title="Клиент" fields={requestDetails.client} />
-            <FormBlock title="Ремонтные работы" fields={requestDetails.repair} wide />
+            <FormBlock title="Оборудование" fields={details.equipment} />
+            <FormBlock title="Клиент" fields={details.client} />
+            <FormBlock title="Ремонтные работы" fields={details.repair} wide />
 
             <section className="detail-block wide-block">
               <div className="block-title-row">
                 <h2>Запчасти</h2>
                 <div className="parts-actions">
-                  <button className="button secondary" type="button" onClick={() => addPart('Покупная')}>
-                    <Plus size={18} />
+                  <Button className="app-button" icon={<Plus size={16} />} onClick={() => addPart('Покупная')}>
                     Добавить покупную запчасть
-                  </button>
-                  <button className="button secondary" type="button" onClick={() => addPart('Наша')}>
-                    <Plus size={18} />
+                  </Button>
+                  <Button className="app-button" icon={<Plus size={16} />} onClick={() => addPart('Наша')}>
                     Добавить нашу запчасть
-                  </button>
+                  </Button>
                 </div>
-              </div>
-              <div className="parts-table-wrap">
-                <table className="parts-table">
+            </div>
+            <div className="parts-table-wrap">
+              <table className="parts-table">
                   <thead>
                     <tr>
                       <th>Тип</th>
@@ -1060,48 +839,66 @@ function RequestPage({ requestId }) {
                       <th>Количество на складе</th>
                       <th>Цена</th>
                       <th>Комментарий</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
                     {parts.map((part, index) => (
                       <tr key={`${part.source}-${index}`}>
                         <td>
-                          <input value={part.source} readOnly />
+                          <Input value={part.source} readOnly />
                         </td>
-                        <td>
-                          <input
+                      <td>
+                        {isOwnPart(part) ? (
+                          <PartModelSearch
+                            models={salesModels}
+                            value={part.model}
+                            onChange={(modelName, modelId) => {
+                              updatePart(setParts, index, 'model', modelName);
+                              updatePart(setParts, index, 'modelId', modelId);
+                            }}
+                          />
+                        ) : (
+                          <Input
                             value={part.model}
                             onChange={(event) => updatePart(setParts, index, 'model', event.target.value)}
                             placeholder="Модель запчасти"
                           />
-                        </td>
+                        )}
+                      </td>
                         <td>
-                          <input
-                            type="number"
-                            min="1"
+                          <InputNumber
+                            min={1}
                             value={part.qty}
-                            onChange={(event) => updatePart(setParts, index, 'qty', event.target.value)}
+                            onChange={(value) => updatePart(setParts, index, 'qty', value)}
                           />
                         </td>
                         <td>
-                          <input
+                          <Input
                             value={part.stock}
                             onChange={(event) => updatePart(setParts, index, 'stock', event.target.value)}
                           />
                         </td>
                         <td>
-                          <input
-                            type="number"
-                            min="0"
+                          <InputNumber
+                            min={0}
                             value={part.price}
-                            onChange={(event) => updatePart(setParts, index, 'price', event.target.value)}
+                            onChange={(value) => updatePart(setParts, index, 'price', value)}
                           />
                         </td>
                         <td>
-                          <input
+                          <Input
                             value={part.comment}
                             onChange={(event) => updatePart(setParts, index, 'comment', event.target.value)}
                             placeholder="Комментарий"
+                          />
+                        </td>
+                        <td className="part-actions-cell">
+                          <Button
+                            className="icon-button delete-row-button"
+                            danger
+                            icon={<Trash2 size={16} />}
+                            onClick={() => removePart(index)}
                           />
                         </td>
                       </tr>
@@ -1117,19 +914,23 @@ function RequestPage({ requestId }) {
   );
 }
 
-function StatusRoadmap({ currentStatus }) {
-  const currentIndex = requestStatusRoadmap.findIndex((step) => step.status === currentStatus);
+function StatusRoadmap({ currentStatus, currentStatusId }) {
+  const currentId = Number(currentStatusId);
+  const currentIndex = requestStatusRoadmap.findIndex(
+    (step) => step.id === currentId || step.status === currentStatus,
+  );
+  const triggerStatus = currentIndex >= 0 ? requestStatusRoadmap[currentIndex].status : currentStatus;
 
   return (
     <span className="status-roadmap">
       <button className="status-pill status-trigger" type="button">
-        {currentStatus}
+        {triggerStatus}
       </button>
       <span className="status-tooltip" role="tooltip">
         <span className="status-tooltip-title">Этапы заявки</span>
         <span className="status-steps">
           {requestStatusRoadmap.map((step, index) => {
-            const isCurrent = step.status === currentStatus;
+            const isCurrent = step.id === currentId || step.status === currentStatus;
             const isDone = currentIndex >= 0 && index < currentIndex;
 
             return (
@@ -1145,6 +946,36 @@ function StatusRoadmap({ currentStatus }) {
         </span>
       </span>
     </span>
+  );
+}
+
+function PartModelSearch({ models, value, onChange }) {
+  const query = String(value || '').toLowerCase().trim();
+  const options = models
+    .filter((model) => !query || model.label.toLowerCase().includes(query) || String(model.id).includes(query))
+    .slice(0, 30)
+    .map((model) => ({
+      value: model.label,
+      label: (
+        <span className="model-option">
+          <span>{model.label}</span>
+          <small>{model.id}</small>
+        </span>
+      ),
+      modelId: model.id,
+    }));
+
+  return (
+    <AutoComplete
+      className="model-search"
+      value={value}
+      options={options}
+      onChange={(nextValue) => onChange(nextValue, '')}
+      onSelect={(nextValue, option) => onChange(nextValue, option.modelId)}
+      notFoundContent="Модель не найдена"
+    >
+      <Input placeholder="Найти модель" />
+    </AutoComplete>
   );
 }
 
@@ -1166,7 +997,7 @@ function DetailSkeleton() {
           <table className="parts-table">
             <thead>
               <tr>
-                {Array.from({ length: 6 }).map((_, index) => (
+                {Array.from({ length: 7 }).map((_, index) => (
                   <th key={`parts-head-skeleton-${index}`}>
                     <span className="skeleton-line header" />
                   </th>
@@ -1176,7 +1007,7 @@ function DetailSkeleton() {
             <tbody>
               {Array.from({ length: 3 }).map((_, rowIndex) => (
                 <tr className="skeleton-row" key={`parts-row-skeleton-${rowIndex}`}>
-                  {Array.from({ length: 6 }).map((__, cellIndex) => (
+                  {Array.from({ length: 7 }).map((__, cellIndex) => (
                     <td key={`parts-cell-skeleton-${rowIndex}-${cellIndex}`}>
                       <span className="skeleton-line input" />
                     </td>
@@ -1216,23 +1047,43 @@ function FormBlock({ title, fields, wide = false }) {
           <label className="field" key={name}>
             <span>{fieldLabels[name]}</span>
             {selectFieldOptions[name] ? (
-              <select defaultValue={value}>
-                {selectFieldOptions[name].map((option) => (
-                  <option value={option} key={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
+              <Select
+                defaultValue={value}
+                showSearch
+                optionFilterProp="label"
+                options={getSelectOptions(name, value).map((option) => ({ value: option, label: option || ' ' }))}
+              />
+            ) : dateFieldNames.has(name) ? (
+              <DatePicker
+                defaultValue={value ? dayjs(value) : null}
+                format="DD.MM.YYYY"
+                placeholder=""
+              />
             ) : String(value).length > 56 ? (
-              <textarea defaultValue={value} rows={3} />
+              <Input.TextArea className="long-text-field" defaultValue={value} rows={4} />
             ) : (
-              <input defaultValue={value} />
+              <Input defaultValue={value} />
             )}
           </label>
         ))}
       </div>
     </section>
   );
+}
+
+function getSelectOptions(name, value) {
+  const options = selectFieldOptions[name] || [];
+  const stringValue = String(value ?? '');
+
+  if (!stringValue && options.length === 0) {
+    return [''];
+  }
+
+  if (!stringValue || options.includes(stringValue)) {
+    return options;
+  }
+
+  return [stringValue, ...options];
 }
 
 function updatePart(setParts, index, field, value) {
@@ -1256,4 +1107,6 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+createRoot(document.getElementById('root')).render(<AppRoot />);
+
+
