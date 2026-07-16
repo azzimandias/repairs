@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 3006",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "preview": "vite preview --host 0.0.0.0",
+    "push-all-changes": "git add . && git commit -m\"update\" && git push origin",
+    "fetch-all": "git fetch origin && git merge origin/master",
+    "update": "git fetch origin && git reset --hard origin/master && npm install && npm install corp-chat-library-antd-react-socket@latest --save --save-exact && npm install corp-notificator-library-antd-react-socket@latest --save --save-exact && npm run build"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",

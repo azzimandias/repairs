@@ -18,7 +18,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: var(--page-bg);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 button,
@@ -40,7 +40,7 @@ button:disabled {
 .app-shell {
   display: flex;
   flex-direction: column;
-  width: min(1680px, calc(100% - 32px));
+  width: min(1920px, calc(100% - 32px));
   height: 100vh;
   margin: 0 auto;
   padding: 24px 0 28px;
@@ -53,6 +53,18 @@ button:disabled {
   padding: 4px 16px 10px;
   background: var(--page-bg);
   box-shadow: none;
+}
+
+.list-shell .global-header {
+  margin-bottom: 10px;
+}
+
+.list-shell .topbar {
+  margin-bottom: 18px;
+}
+
+.list-shell {
+  overflow: hidden;
 }
 
 .topbar {
@@ -68,7 +80,6 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
 }
 
 .eyebrow {
@@ -147,6 +158,7 @@ h2 {
 }
 
 .user-profile {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -355,7 +367,7 @@ select {
 }
 
 .requests-table {
-  min-width: 1240px;
+  table-layout: fixed;
 }
 
 th,
@@ -370,6 +382,9 @@ td {
 .requests-table td {
   border-right: 1px solid #d5e3f2;
   text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .requests-table th:last-child,
@@ -557,136 +572,157 @@ td {
   color: #344154;
 }
 
-.status-roadmap {
-  position: relative;
-  display: inline-flex;
-}
-
 .status-trigger {
   min-height: 30px;
   border: 1px solid #8fb3dd;
   background: #ffffff;
   color: #12315f;
   box-shadow: 0 4px 12px rgb(37 99 180 / 12%);
+  white-space: normal;
 }
 
-.status-tooltip {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  z-index: 40;
+.roadmap-card {
   display: grid;
+  grid-template-rows: auto auto 1fr;
+  align-content: start;
   gap: 10px;
-  width: 260px;
+  min-width: 0;
   padding: 12px;
   border: 1px solid #bfd4eb;
   border-radius: 8px;
   background: #fbfdff;
-  box-shadow: 0 16px 34px rgb(37 99 180 / 16%);
+  box-shadow: 0 14px 34px rgb(37 99 180 / 8%);
   color: #25354a;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateY(-4px);
-  transition:
-    opacity 0.14s ease,
-    transform 0.14s ease;
+  overflow-x: hidden;
 }
 
-.status-tooltip::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  right: 24px;
-  width: 10px;
-  height: 10px;
-  border-top: 1px solid #bfd4eb;
-  border-left: 1px solid #bfd4eb;
-  background: #fbfdff;
-  transform: rotate(45deg);
-}
-
-.status-roadmap:hover .status-tooltip,
-.status-roadmap:focus-within .status-tooltip {
-  opacity: 1;
-  pointer-events: auto;
-  transform: translateY(0);
+.roadmap-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 20px;
 }
 
 .status-tooltip-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 900;
 }
 
-.status-steps {
-  position: relative;
-  display: grid;
-  gap: 8px;
+.roadmap-timeline {
+  min-height: 0;
+  margin: 2px 0 0 !important;
+  overflow: hidden;
 }
 
-.status-steps::before {
-  content: "";
-  position: absolute;
-  top: 6px;
-  bottom: 28px;
-  left: 5px;
-  width: 2px;
-  background: #c9d9eb;
+.roadmap-timeline .ant-timeline-item {
+  padding-bottom: 8px;
 }
 
-.status-step {
-  position: relative;
+.roadmap-timeline .ant-timeline-item-last {
+  padding-bottom: 0;
+}
+
+.roadmap-timeline .ant-timeline-item-tail {
+  border-inline-start-color: #bfd4eb !important;
+}
+
+.roadmap-timeline .ant-timeline-item-head {
+  width: 10px;
+  height: 10px;
+  margin-inline-start: -4px;
+  border-width: 2px;
+}
+
+.roadmap-timeline .ant-timeline-item.done .ant-timeline-item-head {
+  background: #78a7dc;
+  border-color: #78a7dc;
+}
+
+.roadmap-timeline .ant-timeline-item.current .ant-timeline-item-head {
+  width: 14px;
+  height: 14px;
+  margin-inline-start: -6px;
+  background: #fff;
+  border-color: #2d6fd3;
+  box-shadow:
+    0 0 0 4px rgb(35 88 216 / 16%),
+    0 6px 14px rgb(35 88 216 / 20%);
+}
+
+.roadmap-timeline-content {
   display: grid;
-  grid-template-columns: 16px 1fr;
-  gap: 8px;
-  align-items: start;
-  color: #657386;
-  font-size: 13px;
+  gap: 3px;
+  min-width: 0;
+}
+
+.roadmap-timeline .ant-timeline-item.current .roadmap-timeline-content {
+  margin: -5px 0 0 -6px;
+  padding: 7px 9px;
+  border: 1px solid #b8d4f4;
+  border-radius: 7px;
+  background: #edf6ff;
+}
+
+.roadmap-timeline-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #536175;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.28;
+}
+
+.roadmap-current-label {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #2d6fd3;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.roadmap-timeline-role {
+  color: #8492a5;
+  font-size: 11px;
   font-weight: 700;
+  line-height: 1.25;
 }
 
-.status-dot {
-  position: relative;
-  z-index: 1;
-  width: 12px;
-  height: 12px;
-  border: 2px solid #b8cce2;
-  border-radius: 50%;
-  background: #fbfdff;
-}
-
-.status-step.done {
-  color: #2e6fba;
-}
-
-.status-step.done .status-dot {
-  border-color: #2e6fba;
-  background: #2e6fba;
-}
-
-.status-step.current {
+.roadmap-timeline .ant-timeline-item.current .roadmap-timeline-title {
   color: #102a56;
   font-weight: 900;
 }
 
-.status-step.current .status-dot {
-  border-color: #2358d8;
-  background: #fff;
-  box-shadow: 0 0 0 4px rgb(35 88 216 / 14%);
-}
-
-.status-step-text {
-  display: grid;
-  gap: 2px;
-}
-
-.status-role {
-  color: #6f8197;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.status-step.current .status-role {
+.roadmap-timeline .ant-timeline-item.current .roadmap-timeline-role {
   color: #2d6fd3;
+}
+
+.roadmap-actions {
+  align-self: end;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #dbe8f6;
+}
+
+.roadmap-actions .button {
+  width: 100%;
+  height: auto;
+  min-height: 38px;
+  white-space: normal;
+}
+
+.roadmap-actions .button span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .empty-state {
@@ -801,14 +837,20 @@ td {
 }
 
 .detail-shell {
-  width: min(1480px, calc(100% - 32px));
-  overflow: hidden;
+  --detail-roadmap-top: 108px;
+
+  width: calc(100% - 40px);
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
   padding-bottom: 24px;
 }
 
 .detail-sticky-controls {
-  margin: -24px 0 16px;
-  padding: 4px 0 14px;
+  position: sticky;
+  top: 0;
+  margin: -24px 0 0;
+  padding: 4px 0 0;
   background: var(--page-bg);
 }
 
@@ -826,14 +868,63 @@ td {
 }
 
 .detail-title {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
-.detail-title h1 {
-  max-width: 880px;
+.detail-heading {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.detail-title-row h1 {
+  flex: 0 1 auto;
+  max-width: min(48vw, 760px);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-request-id {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid #c7d9ee;
+  border-radius: 7px;
+  background: #f7fbff;
+  color: #2d6fd3;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 18px;
+  text-transform: uppercase;
+}
+
+.detail-client-name {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 80px;
+  max-width: 420px;
+  overflow: hidden;
+  color: #536175;
+  font-size: 15px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-client-name::before {
+  content: "/";
+  margin-right: 10px;
+  color: #8aa2bd;
+  font-weight: 900;
 }
 
 .back-button {
@@ -843,16 +934,46 @@ td {
 
 .detail-content-scroll {
   flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
+  min-height: auto;
+  overflow: visible;
   background: transparent;
-  padding-bottom: 4px;
+}
+
+.detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 14px;
+  align-items: start;
+  height: auto;
+  min-height: auto;
+  overflow: visible;
 }
 
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 10px;
+  height: auto;
+  min-height: auto;
+  overflow: visible;
+  padding: 0 4px 4px 0;
+}
+
+.roadmap-column {
+  position: sticky;
+  top: var(--detail-roadmap-top);
+  align-self: start;
+  height: calc(100vh - var(--detail-roadmap-top) - 24px);
+  min-height: 0;
+  overflow: visible;
+}
+
+.roadmap-column .roadmap-card {
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .detail-block {
@@ -892,23 +1013,12 @@ td {
   border-bottom: 0;
 }
 
-.field:hover span {
+.field:hover > span {
   background: #e6f1ff;
   color: #385f91;
 }
 
-.field:hover > input,
-.field:hover > textarea,
-.field:hover > select,
-.field:hover > .ant-input,
-.field:hover > .ant-input-affix-wrapper,
-.field:hover > .ant-picker,
-.field:hover > .ant-select .ant-select-selector,
-.field:hover > .ant-input-number {
-  background-color: #f7fbff;
-}
-
-.field span {
+.field > span {
   align-self: stretch;
   display: flex;
   align-items: center;
@@ -951,6 +1061,7 @@ td {
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
+  outline: 0 !important;
 }
 
 .field > .ant-picker,
@@ -959,7 +1070,17 @@ td {
 .field > .ant-input,
 .field > .ant-input-affix-wrapper {
   min-height: 30px;
-  background: #fff;
+  background: #fff !important;
+}
+
+.field > .ant-select:hover .ant-select-selector,
+.field > .ant-select-focused .ant-select-selector,
+.field > .ant-select-open .ant-select-selector,
+.field > .ant-picker:hover,
+.field > .ant-picker-focused {
+  background: #fff !important;
+  border: 0 !important;
+  box-shadow: none !important;
 }
 
 .field > .ant-select,
@@ -977,6 +1098,54 @@ td {
 .field > .ant-input-affix-wrapper {
   padding-left: 10px !important;
   padding-right: 10px !important;
+}
+
+.field > .ant-select .ant-select-selector,
+.field > .ant-picker {
+  height: 30px !important;
+}
+
+.field > .ant-select .ant-select-selection-item,
+.field > .ant-select .ant-select-selection-placeholder,
+.field > .ant-picker .ant-picker-input {
+  line-height: 30px !important;
+}
+
+.field > .ant-picker .ant-picker-input > input {
+  height: 28px;
+}
+
+.field > .ant-select .ant-select-arrow,
+.field > .ant-picker .ant-picker-suffix {
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  border-radius: 0;
+  background: transparent !important;
+  color: #536b88;
+}
+
+.field > .ant-select .ant-select-arrow::before,
+.field > .ant-select .ant-select-arrow::after,
+.field > .ant-picker .ant-picker-suffix::before,
+.field > .ant-picker .ant-picker-suffix::after {
+  display: none;
+}
+
+.field > .ant-select .ant-select-selector::before,
+.field > .ant-select .ant-select-selector::after,
+.field > .ant-picker::before,
+.field > .ant-picker::after {
+  display: none !important;
+}
+
+.field > .ant-select .ant-select-arrow svg,
+.field > .ant-picker .ant-picker-suffix svg {
+  display: block;
 }
 
 .field > .ant-select .ant-select-selection-item,
@@ -1038,8 +1207,6 @@ td {
 .field > textarea:focus,
 .field > select:focus,
 .field > .ant-input:focus,
-.field > .ant-picker-focused,
-.field > .ant-select-focused .ant-select-selector,
 .field > .ant-input-number-focused,
 .parts-table input:focus {
   border-color: #6e91e9;
@@ -1114,10 +1281,17 @@ td {
 }
 
 .model-option {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 14px;
+  width: 100%;
+}
+
+.model-option > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .model-option small {
@@ -1189,10 +1363,15 @@ td {
   }
 
   .toolbar,
+  .detail-layout,
   .detail-grid,
   .fields-grid,
   .wide-block .fields-grid {
     grid-template-columns: 1fr;
+  }
+
+  .roadmap-column {
+    position: static;
   }
 
   .field {
@@ -1200,8 +1379,12 @@ td {
     gap: 4px;
   }
 
-  .detail-title h1 {
-    white-space: normal;
+  .detail-title-row {
+    gap: 8px;
+  }
+
+  .detail-title-row h1 {
+    max-width: 100%;
   }
 
   .wide-block {

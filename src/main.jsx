@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { AutoComplete, Button, Checkbox, ConfigProvider, DatePicker, Input, InputNumber, Segmented, Select } from 'antd';
+import { AutoComplete, Button, Checkbox, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Segmented, Select, Timeline, notification } from 'antd';
 import ruRU from 'antd/locale/ru_RU';
 import dayjs from 'dayjs';
 import { createRoot } from 'react-dom/client';
@@ -11,10 +11,11 @@ import {
   FilePlus2,
   Home,
   Plus,
+  Save,
   Search,
   Trash2,
 } from 'lucide-react';
-import { fetchRepair, fetchRepairManagers, fetchRepairs, fetchSalesModels } from './api';
+import { fetchCurrentUser, fetchRepair, fetchRepairManagers, fetchRepairs, fetchSalesModels, saveRepair } from './api';
 import 'antd/dist/reset.css';
 import './styles.css';
 
@@ -110,16 +111,19 @@ const selectFieldOptions = {
 };
 
 const requestStatusRoadmap = [
-  { id: 100, status: 'Заявка создана', role: 'Склад' },
-  { id: 200, status: 'Заявка обработана', role: 'Склад' },
-  { id: 300, status: 'Принято в сервис-центр', role: 'Сервис-центр' },
-  { id: 400, status: 'Диагностика проведена', role: 'Сервис-центр' },
-  { id: 450, status: 'Акт диагностики отправлен', role: 'Менеджер' },
-  { id: 500, status: 'Объём работы согласован', role: 'Менеджер' },
-  { id: 550, status: 'Запчасти получены', role: 'Сервис-центр' },
-  { id: 600, status: 'Работа завершена', role: 'Сервис-центр' },
-  { id: 700, status: 'Счёт выставлен', role: 'Администратор' },
-  { id: 800, status: 'Счёт оплачен', role: 'Администратор' },
+  { number: 100, status: 'Заявка создана', role: 'Склад' },
+  { number: 200, status: 'Заявка обработана', role: 'Склад' },
+  { number: 300, status: 'Принята в сервис-центре', role: 'Сервис-центр' },
+  { number: 400, status: 'Диагностика проведена', role: 'Сервис-центр' },
+  { number: 450, status: 'Акт диагностики отправлен', role: 'Менеджер' },
+  { number: 500, status: 'Объем работы согласован', role: 'Менеджер' },
+  { number: 550, status: 'Запчасти получены', role: 'Сервис-центр' },
+  { number: 600, status: 'Работа завершена', role: 'Сервис-центр' },
+  { number: 700, status: 'Счет выставлен', role: 'Администратор' },
+  { number: 800, status: 'Счет оплачен', role: 'Администратор' },
+  { number: 850, status: 'Отправлено на склад', role: 'Склад' },
+  { number: 900, status: 'Доставлено на склад выдачи', role: 'Склад' },
+  { number: 1000, status: 'Оборудование выдано', role: 'Склад' },
 ];
 
 function mapBackendRepair(repair) {
@@ -286,18 +290,40 @@ function isOwnPart(part) {
   return part.source === 'Наша' || part.source === 'РќР°С€Р°' || Number(part.type) === 0;
 }
 
-function App() {
+function App({ currentUser }) {
   const path = window.location.pathname;
   const detailMatch = path.match(/^\/requests\/([^/]+)$/);
 
   if (detailMatch) {
-    return <RequestPage requestId={decodeURIComponent(detailMatch[1])} />;
+    return <RequestPage currentUser={currentUser} requestId={decodeURIComponent(detailMatch[1])} />;
   }
 
-  return <RequestsListPage />;
+  return <RequestsListPage currentUser={currentUser} />;
 }
 
 function AppRoot() {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    fetchCurrentUser()
+      .then((user) => {
+        if (!ignore) {
+          setCurrentUser(user);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setCurrentUser(null);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   return (
     <ConfigProvider
       locale={ruRU}
@@ -311,12 +337,15 @@ function AppRoot() {
         },
       }}
     >
-      <App />
+      <App currentUser={currentUser} />
     </ConfigProvider>
   );
 }
 
-function GlobalHeader() {
+function GlobalHeader({ currentUser }) {
+  const userName = formatUserName(currentUser) || 'Пользователь';
+  const userInitials = getUserInitials(userName);
+
   return (
     <div className="global-header">
       <div className="title-kicker">
@@ -325,17 +354,69 @@ function GlobalHeader() {
         </a>
         <p className="eyebrow">Сервис-центр</p>
       </div>
-      <div className="user-profile" title="Текущий пользователь">
-        <div className="user-avatar">АК</div>
-        <div className="user-name">
-          <strong>Алексей Кузнецов</strong>
+      <Dropdown
+        menu={{
+          items: [
+            {
+              key: 'logout',
+              label: <a href="/logout">Выйти</a>,
+            },
+          ],
+        }}
+        placement="bottomRight"
+        trigger={['hover']}
+      >
+        <div className="user-profile" title="Текущий пользователь">
+          <div className="user-avatar">{userInitials}</div>
+          <div className="user-name">
+            <strong>{userName}</strong>
+          </div>
         </div>
-      </div>
+      </Dropdown>
     </div>
   );
 }
 
-function RequestsListPage() {
+function formatUserName(user) {
+  if (!user) {
+    return '';
+  }
+
+  if (typeof user === 'string') {
+    return user;
+  }
+
+  return (
+    user.full_name ||
+    user.fullName ||
+    user.fio ||
+    [user.name, user.surname].filter(Boolean).join(' ') ||
+    [user.first_name, user.last_name].filter(Boolean).join(' ') ||
+    user.name ||
+    user.login ||
+    user.email ||
+    ''
+  );
+}
+
+function getUserInitials(name) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return 'П';
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+}
+
+function RequestsListPage({ currentUser }) {
   const [filters, setFilters] = useState({
     audience: 'all',
     repairType: 'all',
@@ -499,9 +580,9 @@ function RequestsListPage() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell list-shell">
       <div className="sticky-controls">
-        <GlobalHeader />
+        <GlobalHeader currentUser={currentUser} />
         <header className="topbar">
           <div>
             <h1>Заявки на ремонт</h1>
@@ -691,13 +772,20 @@ function getNearbyPages(currentPage, totalPages) {
   return Array.from({ length: end - start + 1 }, (_, index) => start + index);
 }
 
-function RequestPage({ requestId }) {
+function RequestPage({ currentUser, requestId }) {
   const [request, setRequest] = useState(emptyRequest);
   const [details, setDetails] = useState(emptyRequestDetails);
   const [parts, setParts] = useState([]);
+  const [initialSnapshot, setInitialSnapshot] = useState('');
   const [salesModels, setSalesModels] = useState([]);
   const [loadError, setLoadError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [notificationApi, notificationContext] = notification.useNotification();
+  const currentSnapshot = buildRepairSnapshot(request, details, parts);
+  const hasChanges = Boolean(initialSnapshot) && currentSnapshot !== initialSnapshot;
+  const displayEquipment = details.equipment.model || request.equipment;
+  const displayClient = details.client.companyName || request.client;
 
   useEffect(() => {
     document.title = `Сервис-центр | ${requestId}`;
@@ -720,6 +808,7 @@ function RequestPage({ requestId }) {
         setRequest(mappedRequest);
         setDetails(mappedDetails);
         setParts(mappedDetails.parts);
+        setInitialSnapshot(buildRepairSnapshot(mappedRequest, mappedDetails, mappedDetails.parts));
         setLoadError('');
       })
       .catch(() => {
@@ -727,6 +816,7 @@ function RequestPage({ requestId }) {
           setRequest(emptyRequest);
           setDetails(emptyRequestDetails);
           setParts([]);
+          setInitialSnapshot('');
           setLoadError('Ошибка загрузки заявки');
         }
       })
@@ -774,10 +864,126 @@ function RequestPage({ requestId }) {
     setParts((current) => current.filter((_, partIndex) => partIndex !== index));
   }
 
+  function updateDetail(section, field, value) {
+    setDetails((current) => ({
+      ...current,
+      [section]: {
+        ...current[section],
+        [field]: value,
+      },
+    }));
+  }
+
+  function applySavedRepair(result, fallbackRequest = request, fallbackDetails = details, fallbackParts = parts) {
+    const nextRequest = result ? mapBackendRepair(result) : fallbackRequest;
+    const nextDetails = result ? mapBackendRepairDetails(result) : fallbackDetails;
+    const nextParts = result ? nextDetails.parts : fallbackParts;
+
+    setRequest(nextRequest);
+    setDetails(nextDetails);
+    setParts(nextParts);
+    setInitialSnapshot(buildRepairSnapshot(nextRequest, nextDetails, nextParts));
+
+    return { nextRequest, nextDetails, nextParts };
+  }
+
+  async function saveRepairPayload(payload, fallbackRequest, successTitle, successDescription) {
+    if (isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const result = await saveRepair(payload);
+
+      applySavedRepair(result, fallbackRequest);
+      notificationApi.success({
+        title: successTitle,
+        description: result?.msg || result?.message || successDescription,
+      });
+    } catch (error) {
+      notificationApi.error({
+        title: 'Не удалось сохранить заявку',
+        description: error.message || 'Сервер вернул ошибку сохранения.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function moveToNextStatus() {
+    const nextStatus = getNextRoadmapStatus(request);
+
+    if (!nextStatus) {
+      return;
+    }
+
+    const nextRequest = {
+      ...request,
+      status: nextStatus.status,
+      status_id: nextStatus.number,
+    };
+
+    await saveRepairPayload(
+      buildSaveRepairPayload(nextRequest, details, parts),
+      nextRequest,
+      'Статус изменён',
+      `Заявка переведена в статус «${nextStatus.status}».`,
+    );
+  }
+
+  async function moveToPreviousStatus() {
+    const previousStatus = getPreviousRoadmapStatus(request);
+
+    if (!previousStatus) {
+      return;
+    }
+
+    const previousRequest = {
+      ...request,
+      status: previousStatus.status,
+      status_id: previousStatus.number,
+    };
+
+    await saveRepairPayload(
+      buildSaveRepairPayload(previousRequest, details, parts),
+      previousRequest,
+      'Статус изменён',
+      `Заявка переведена в статус «${previousStatus.status}».`,
+    );
+  }
+
+  async function saveRequest() {
+    if (!hasChanges || isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      const result = await saveRepair(buildSaveRepairPayload(request, details, parts));
+
+      applySavedRepair(result);
+      notificationApi.success({
+        title: 'Заявка сохранена',
+        description: result?.msg || result?.message || 'Изменения успешно отправлены на сервер.',
+      });
+    } catch (error) {
+      notificationApi.error({
+        title: 'Не удалось сохранить заявку',
+        description: error.message || 'Сервер вернул ошибку сохранения.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <main className="app-shell detail-shell">
+      {notificationContext}
       <div className="sticky-controls detail-sticky-controls">
-        <GlobalHeader />
+        <GlobalHeader currentUser={currentUser} />
         <header className="topbar detail-header">
           <div className="detail-title">
             <Button className="icon-button back-button" icon={<ArrowLeft size={18} />} onClick={() => window.close()} />
@@ -787,9 +993,12 @@ function RequestPage({ requestId }) {
                 <span className="skeleton-line title" />
               </div>
             ) : (
-              <div>
-                <p className="eyebrow">Заявка {request.id}</p>
-                <h1>{request.equipment}</h1>
+              <div className="detail-heading">
+                <div className="detail-title-row">
+                  <span className="detail-request-id">Заявка {request.id}</span>
+                  <h1>{displayEquipment}</h1>
+                  <span className="detail-client-name">{displayClient}</span>
+                </div>
               </div>
             )}
           </div>
@@ -800,8 +1009,16 @@ function RequestPage({ requestId }) {
             </div>
           ) : (
             <div className="detail-meta">
-              <StatusRoadmap currentStatus={request.status} currentStatusId={request.status_id} />
-              <span>{request.client}</span>
+              <Button
+                className="app-button"
+                type="primary"
+                icon={<Save size={16} />}
+                disabled={!hasChanges || isSaving}
+                loading={isSaving}
+                onClick={saveRequest}
+              >
+                Сохранить
+              </Button>
             </div>
           )}
         </header>
@@ -812,101 +1029,128 @@ function RequestPage({ requestId }) {
         {isLoading ? (
           <DetailSkeleton />
         ) : (
-          <div className="detail-grid">
-            <FormBlock title="Оборудование" fields={details.equipment} />
-            <FormBlock title="Клиент" fields={details.client} />
-            <FormBlock title="Ремонтные работы" fields={details.repair} wide />
+          <div className="detail-layout">
+            <div className="detail-grid">
+              <FormBlock
+                title="Оборудование"
+                fields={details.equipment}
+                onChange={(field, value) => updateDetail('equipment', field, value)}
+              />
+              <FormBlock
+                title="Клиент"
+                fields={details.client}
+                onChange={(field, value) => updateDetail('client', field, value)}
+              />
+              <FormBlock
+                title="Ремонтные работы"
+                fields={details.repair}
+                onChange={(field, value) => updateDetail('repair', field, value)}
+                wide
+              />
 
-            <section className="detail-block wide-block">
-              <div className="block-title-row">
-                <h2>Запчасти</h2>
-                <div className="parts-actions">
-                  <Button className="app-button" icon={<Plus size={16} />} onClick={() => addPart('Покупная')}>
-                    Добавить покупную запчасть
-                  </Button>
-                  <Button className="app-button" icon={<Plus size={16} />} onClick={() => addPart('Наша')}>
-                    Добавить нашу запчасть
-                  </Button>
+              <section className="detail-block wide-block">
+                <div className="block-title-row">
+                  <h2>Запчасти</h2>
+                  <div className="parts-actions">
+                    <Button className="app-button" icon={<Plus size={16} />} onClick={() => addPart('Покупная')}>
+                      Добавить покупную запчасть
+                    </Button>
+                    <Button className="app-button" icon={<Plus size={16} />} onClick={() => addPart('Наша')}>
+                      Добавить нашу запчасть
+                    </Button>
+                  </div>
                 </div>
-            </div>
-            <div className="parts-table-wrap">
-              <table className="parts-table">
-                  <thead>
-                    <tr>
-                      <th>Тип</th>
-                      <th>Модель</th>
-                      <th>Количество</th>
-                      <th>Количество на складе</th>
-                      <th>Цена</th>
-                      <th>Комментарий</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parts.map((part, index) => (
-                      <tr key={`${part.source}-${index}`}>
-                        <td>
-                          <Input value={part.source} readOnly />
-                        </td>
-                      <td>
-                        {isOwnPart(part) ? (
-                          <PartModelSearch
-                            models={salesModels}
-                            value={part.model}
-                            onChange={(modelName, modelId) => {
-                              updatePart(setParts, index, 'model', modelName);
-                              updatePart(setParts, index, 'modelId', modelId);
-                            }}
-                          />
-                        ) : (
-                          <Input
-                            value={part.model}
-                            onChange={(event) => updatePart(setParts, index, 'model', event.target.value)}
-                            placeholder="Модель запчасти"
-                          />
-                        )}
-                      </td>
-                        <td>
-                          <InputNumber
-                            min={1}
-                            value={part.qty}
-                            onChange={(value) => updatePart(setParts, index, 'qty', value)}
-                          />
-                        </td>
-                        <td>
-                          <Input
-                            value={part.stock}
-                            onChange={(event) => updatePart(setParts, index, 'stock', event.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <InputNumber
-                            min={0}
-                            value={part.price}
-                            onChange={(value) => updatePart(setParts, index, 'price', value)}
-                          />
-                        </td>
-                        <td>
-                          <Input
-                            value={part.comment}
-                            onChange={(event) => updatePart(setParts, index, 'comment', event.target.value)}
-                            placeholder="Комментарий"
-                          />
-                        </td>
-                        <td className="part-actions-cell">
-                          <Button
-                            className="icon-button delete-row-button"
-                            danger
-                            icon={<Trash2 size={16} />}
-                            onClick={() => removePart(index)}
-                          />
-                        </td>
+                {parts.length > 0 && (
+                  <div className="parts-table-wrap">
+                    <table className="parts-table">
+                    <thead>
+                      <tr>
+                        <th>Тип</th>
+                        <th>Модель</th>
+                        <th>Количество</th>
+                        <th>На складе</th>
+                        <th>Цена</th>
+                        <th>Комментарий</th>
+                        <th></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+                    </thead>
+                    <tbody>
+                      {parts.map((part, index) => (
+                        <tr key={`${part.source}-${index}`}>
+                          <td>
+                            <Input value={part.source} readOnly />
+                          </td>
+                        <td>
+                          {isOwnPart(part) ? (
+                            <PartModelSearch
+                              models={salesModels}
+                              value={part.model}
+                              onChange={(modelName, modelId) => {
+                                updatePart(setParts, index, 'model', modelName);
+                                updatePart(setParts, index, 'modelId', modelId);
+                              }}
+                            />
+                          ) : (
+                            <Input
+                              value={part.model}
+                              onChange={(event) => updatePart(setParts, index, 'model', event.target.value)}
+                              placeholder="Модель запчасти"
+                            />
+                          )}
+                        </td>
+                          <td>
+                            <InputNumber
+                              min={1}
+                              value={part.qty}
+                              onChange={(value) => updatePart(setParts, index, 'qty', value)}
+                            />
+                          </td>
+                          <td>
+                            <Input
+                              value={part.stock}
+                              onChange={(event) => updatePart(setParts, index, 'stock', event.target.value)}
+                            />
+                          </td>
+                          <td>
+                            <InputNumber
+                              min={0}
+                              value={part.price}
+                              onChange={(value) => updatePart(setParts, index, 'price', value)}
+                            />
+                          </td>
+                          <td>
+                            <Input
+                              value={part.comment}
+                              onChange={(event) => updatePart(setParts, index, 'comment', event.target.value)}
+                              placeholder="Комментарий"
+                            />
+                          </td>
+                          <td className="part-actions-cell">
+                            <Button
+                              className="icon-button delete-row-button"
+                              danger
+                              icon={<Trash2 size={16} />}
+                              onClick={() => removePart(index)}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <aside className="roadmap-column">
+              <StatusRoadmap
+                request={request}
+                currentStatus={request.status}
+                isSaving={isSaving}
+                onNextStatus={moveToNextStatus}
+                onPreviousStatus={moveToPreviousStatus}
+              />
+            </aside>
           </div>
         )}
       </div>
@@ -914,38 +1158,143 @@ function RequestPage({ requestId }) {
   );
 }
 
-function StatusRoadmap({ currentStatus, currentStatusId }) {
-  const currentId = Number(currentStatusId);
+function getRoadmapState(currentStatus, currentStatusId) {
+  const currentNumber = Number(currentStatusId);
   const currentIndex = requestStatusRoadmap.findIndex(
-    (step) => step.id === currentId || step.status === currentStatus,
+    (step) => step.number === currentNumber || step.status.toLowerCase() === String(currentStatus || '').toLowerCase(),
   );
   const triggerStatus = currentIndex >= 0 ? requestStatusRoadmap[currentIndex].status : currentStatus;
 
-  return (
-    <span className="status-roadmap">
-      <button className="status-pill status-trigger" type="button">
-        {triggerStatus}
-      </button>
-      <span className="status-tooltip" role="tooltip">
-        <span className="status-tooltip-title">Этапы заявки</span>
-        <span className="status-steps">
-          {requestStatusRoadmap.map((step, index) => {
-            const isCurrent = step.id === currentId || step.status === currentStatus;
-            const isDone = currentIndex >= 0 && index < currentIndex;
+  return { currentNumber, currentIndex, triggerStatus };
+}
 
-            return (
-              <span className={`status-step ${isCurrent ? 'current' : ''} ${isDone ? 'done' : ''}`} key={step.status}>
-                <span className="status-dot" />
-                <span className="status-step-text">
-                  <span>{step.status}</span>
-                  <span className="status-role">{step.role}</span>
-                </span>
-              </span>
-            );
-          })}
+function getEffectiveStatusNumber(request) {
+  const statusNumber = Number(request.status_id);
+
+  if (statusNumber === 800 && Number(request.send_sklad) === 1) {
+    return 850;
+  }
+
+  if (statusNumber === 850 && Number(request.get_sklad) === 1) {
+    return 900;
+  }
+
+  return statusNumber;
+}
+
+function isWarrantyRepair(request) {
+  const category = Number(request.category_repairs);
+
+  return category === 2 || category === 3;
+}
+
+function getNextRoadmapStatus(request) {
+  const backendNextStatus = getRoadmapStatusByNumber(request.nextstatus);
+
+  if (backendNextStatus) {
+    return backendNextStatus;
+  }
+
+  const currentNumber = getEffectiveStatusNumber(request);
+  const currentIndex = requestStatusRoadmap.findIndex((step) => step.number === currentNumber);
+  let nextStatus = requestStatusRoadmap[currentIndex + 1];
+
+  if (!nextStatus) {
+    return null;
+  }
+
+  if (isWarrantyRepair(request) && nextStatus.number === 400) {
+    nextStatus = requestStatusRoadmap.find((step) => step.number === 450);
+  }
+
+  if (isWarrantyRepair(request) && nextStatus.number === 600) {
+    nextStatus = requestStatusRoadmap.find((step) => step.number === 800);
+  }
+
+  if (nextStatus?.number === 800 && Number(request.send_sklad) === 1) {
+    nextStatus = requestStatusRoadmap.find((step) => step.number === 850);
+  }
+
+  if (nextStatus?.number === 850 && Number(request.get_sklad) === 1) {
+    nextStatus = requestStatusRoadmap.find((step) => step.number === 900);
+  }
+
+  return nextStatus || null;
+}
+
+function getRoadmapStatusByNumber(statusNumber) {
+  const number = Number(statusNumber);
+
+  if (!number) {
+    return null;
+  }
+
+  return requestStatusRoadmap.find((step) => step.number === number) || null;
+}
+
+function getPreviousRoadmapStatus(request) {
+  const currentNumber = getEffectiveStatusNumber(request);
+  const currentIndex = requestStatusRoadmap.findIndex((step) => step.number === currentNumber);
+
+  if (currentIndex <= 0) {
+    return null;
+  }
+
+  return requestStatusRoadmap[currentIndex - 1] || null;
+}
+
+function StatusBadge({ currentStatus, currentStatusId }) {
+  const { triggerStatus } = getRoadmapState(currentStatus, currentStatusId);
+
+  return <span className="status-pill status-trigger">{triggerStatus || 'Статус не указан'}</span>;
+}
+
+function StatusRoadmap({ request, currentStatus, isSaving, onNextStatus, onPreviousStatus }) {
+  const effectiveStatusNumber = getEffectiveStatusNumber(request);
+  const { currentIndex } = getRoadmapState(currentStatus, effectiveStatusNumber);
+  const previousStatus = getPreviousRoadmapStatus(request);
+  const nextStatus = getNextRoadmapStatus(request);
+  const timelineItems = requestStatusRoadmap.map((step, index) => ({
+    content: (
+      <span className="roadmap-timeline-content">
+        <span className="roadmap-timeline-title">
+          {step.status}
+          {index === currentIndex && <span className="roadmap-current-label">текущий</span>}
         </span>
+        <span className="roadmap-timeline-role">{step.role}</span>
       </span>
-    </span>
+    ),
+    className: index === currentIndex ? 'current' : index < currentIndex ? 'done' : 'pending',
+    color: index <= currentIndex ? 'blue' : 'gray',
+  }));
+
+  return (
+    <section className="roadmap-card">
+      <div className="roadmap-card-header">
+        <span className="status-tooltip-title">Этапы заявки</span>
+        <StatusBadge currentStatus={currentStatus} currentStatusId={effectiveStatusNumber} />
+      </div>
+      <Timeline className="roadmap-timeline" items={timelineItems} />
+      <div className="roadmap-actions">
+        <Button
+          className="app-button"
+          disabled={!previousStatus || isSaving}
+          loading={isSaving}
+          onClick={onPreviousStatus}
+        >
+          {previousStatus ? `Предыдущий: ${previousStatus.status}` : 'Начальный статус'}
+        </Button>
+        <Button
+          className="app-button"
+          disabled={!nextStatus || isSaving}
+          loading={isSaving}
+          onClick={onNextStatus}
+          type="primary"
+        >
+          {nextStatus ? `Следующий: ${nextStatus.status}` : 'Финальный статус'}
+        </Button>
+      </div>
+    </section>
   );
 }
 
@@ -970,6 +1319,7 @@ function PartModelSearch({ models, value, onChange }) {
       className="model-search"
       value={value}
       options={options}
+      popupMatchSelectWidth={360}
       onChange={(nextValue) => onChange(nextValue, '')}
       onSelect={(nextValue, option) => onChange(nextValue, option.modelId)}
       notFoundContent="Модель не найдена"
@@ -1038,7 +1388,7 @@ function SkeletonFormBlock({ fields, wide = false }) {
   );
 }
 
-function FormBlock({ title, fields, wide = false }) {
+function FormBlock({ title, fields, onChange, wide = false }) {
   return (
     <section className={`detail-block ${wide ? 'wide-block' : ''}`}>
       <h2>{title}</h2>
@@ -1048,21 +1398,30 @@ function FormBlock({ title, fields, wide = false }) {
             <span>{fieldLabels[name]}</span>
             {selectFieldOptions[name] ? (
               <Select
-                defaultValue={value}
+                value={value}
+                variant="borderless"
                 showSearch
                 optionFilterProp="label"
                 options={getSelectOptions(name, value).map((option) => ({ value: option, label: option || ' ' }))}
+                onChange={(nextValue) => onChange(name, nextValue)}
               />
             ) : dateFieldNames.has(name) ? (
               <DatePicker
-                defaultValue={value ? dayjs(value) : null}
+                value={value ? dayjs(value) : null}
+                variant="borderless"
                 format="DD.MM.YYYY"
                 placeholder=""
+                onChange={(date) => onChange(name, date ? date.format('YYYY-MM-DD') : '')}
               />
             ) : String(value).length > 56 ? (
-              <Input.TextArea className="long-text-field" defaultValue={value} rows={4} />
+              <Input.TextArea
+                className="long-text-field"
+                value={value}
+                rows={4}
+                onChange={(event) => onChange(name, event.target.value)}
+              />
             ) : (
-              <Input defaultValue={value} />
+              <Input value={value} onChange={(event) => onChange(name, event.target.value)} />
             )}
           </label>
         ))}
@@ -1084,6 +1443,64 @@ function getSelectOptions(name, value) {
   }
 
   return [stringValue, ...options];
+}
+
+function buildRepairSnapshot(request, details, parts) {
+  return JSON.stringify({
+    status: request.status,
+    status_id: request.status_id,
+    details,
+    parts,
+  });
+}
+
+function getNumericPayloadValue(value, fallbackValue) {
+  const trimmedValue = String(value ?? '').trim();
+  const numericValue = Number(trimmedValue);
+
+  return trimmedValue !== '' && Number.isFinite(numericValue) ? numericValue : fallbackValue;
+}
+
+function buildSaveRepairPayload(request, details, parts) {
+  return {
+    ...request,
+    status_id: request.status_id,
+    model_name: details.equipment.model,
+    sn: details.equipment.serialNumber,
+    defect_clients: details.equipment.declaredFault,
+    complete_set: details.equipment.kit,
+    condition: details.equipment.externalState,
+    point_of_delivery: details.equipment.pickupPoint,
+    sale_org_name: details.equipment.sellerName,
+    sale_date: details.equipment.saleOrRepairDate,
+    sale_invoice: details.equipment.invoiceNumber,
+    client_org_name: details.client.companyName,
+    client_sity: details.client.city,
+    client_fio_contact: details.client.contactPerson,
+    client_email: details.client.email,
+    client_tel: details.client.phone,
+    client_post: details.client.postalAddress,
+    approved_work: getNumericPayloadValue(details.client.approvedWorks, request.approved_work),
+    approved_work_name: details.client.approvedWorks,
+    engin_defect_note: details.repair.faultDescription,
+    probable_causes_note: details.repair.faultReasons,
+    engin_list_repairs_note: details.repair.expectedRepair,
+    act_text_job: details.repair.repair,
+    engin_foul_comment: details.repair.usageViolation,
+    engin_time_job_diagnostics: details.repair.diagnosisMinutes,
+    engin_comment: details.repair.comment,
+    diagnostics_price: details.repair.diagnosisTotal,
+    engin_time_job: details.repair.repairMinutes,
+    engin_price: details.repair.repairTotal,
+    wait_spares_comment: details.repair.spareWaitingComment,
+    act_text_diagnostic: details.repair.diagnosisAct,
+    spares: parts.map((part) => ({
+      ...part,
+      count: part.qty,
+      model_id: part.modelId,
+      name: part.model,
+    })),
+  };
 }
 
 function updatePart(setParts, index, field, value) {
@@ -1108,5 +1525,3 @@ function escapeHtml(value) {
 }
 
 createRoot(document.getElementById('root')).render(<AppRoot />);
-
-

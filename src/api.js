@@ -1,6 +1,8 @@
-const REPAIRS_ENDPOINT = `${getApiOrigin()}/repairs/actionrepairs`;
-const MANAGERS_ENDPOINT = `${getApiOrigin()}/repairs/managers`;
-const MODELS_ENDPOINT = `${getApiOrigin()}/api/sales/getmodels`;
+const API_ORIGIN = getApiOrigin();
+const REPAIRS_ENDPOINT = `${API_ORIGIN}/api/repairs/actionrepairs`;
+const MANAGERS_ENDPOINT = `${API_ORIGIN}/repairs/managers`;
+const MODELS_ENDPOINT = `${API_ORIGIN}/api/sales/getmodels`;
+const USER_ENDPOINT = `${API_ORIGIN}/api/usda`;
 
 function getApiOrigin() {
   if (import.meta.env.VITE_API_ORIGIN) {
@@ -10,19 +12,71 @@ function getApiOrigin() {
   return `${window.location.protocol}//${window.location.hostname}`;
 }
 
-export async function fetchRepairs(params) {
-  const response = await fetch(`${REPAIRS_ENDPOINT}?${buildRepairQuery(params)}`, {
-    method: 'GET',
+async function apiFetch(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
     credentials: 'include',
     headers: {
       Accept: 'application/json',
+      ...getXsrfHeaders(),
+      ...options.headers,
     },
   });
+  const result = await response.json().catch(() => null);
 
-  const result = await response.json();
+  handleAuthError(response.status);
+
+  if (!response.ok) {
+    throw new Error(getApiErrorMessage(result, `Ошибка запроса (${response.status})`));
+  }
+
+  return result;
+}
+
+function handleAuthError(status) {
+  if (![401, 403, 419].includes(status)) {
+    return;
+  }
+
+  console.log('Auth/session error:', status);
+
+  document.cookie.split(';').forEach((cookie) => {
+    document.cookie = cookie
+      .replace(/^ +/, '')
+      .replace(/=.*/, `=;expires=${new Date(0).toUTCString()};path=/`);
+  });
+
+  window.location.href = `${API_ORIGIN}/login`;
+}
+
+function getXsrfHeaders() {
+  const xsrfToken = document.cookie
+    .split('; ')
+    .find((row) => row.startsWith('XSRF-TOKEN='))
+    ?.split('=')[1];
+
+  if (!xsrfToken) {
+    return {};
+  }
+
+  return {
+    'X-XSRF-TOKEN': decodeURIComponent(xsrfToken),
+  };
+}
+
+function getApiErrorMessage(result, fallback) {
+  if (!result) {
+    return fallback;
+  }
+
+  return result.msg || result.message || result.error || fallback;
+}
+
+export async function fetchRepairs(params) {
+  const result = await apiFetch(`${REPAIRS_ENDPOINT}?${buildRepairQuery(params)}`);
 
   if (result?.error) {
-    throw new Error(result.msg || 'Ошибка загрузки заявок');
+    throw new Error(getApiErrorMessage(result, 'Ошибка загрузки заявок'));
   }
 
   if (Array.isArray(result)) {
@@ -54,18 +108,10 @@ export async function fetchRepair(id) {
   query.set('page', '1');
   query.set('per_page', '1');
 
-  const response = await fetch(`${REPAIRS_ENDPOINT}?${query.toString()}`, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-    },
-  });
-
-  const result = await response.json();
+  const result = await apiFetch(`${REPAIRS_ENDPOINT}?${query.toString()}`);
 
   if (result?.error) {
-    throw new Error(result.msg || 'Ошибка загрузки заявки');
+    throw new Error(getApiErrorMessage(result, 'Ошибка загрузки заявки'));
   }
 
   if (Array.isArray(result)) {
@@ -80,56 +126,42 @@ export async function fetchRepair(id) {
 }
 
 export async function saveRepair(repair) {
-  const response = await fetch(REPAIRS_ENDPOINT, {
+  const result = await apiFetch(REPAIRS_ENDPOINT, {
     method: repair?.id ? 'PUT' : 'POST',
-    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      Accept: 'application/json',
     },
     body: JSON.stringify(repair),
   });
 
-  const result = await response.json();
-
   if (result?.error) {
-    throw new Error(result.msg || 'Ошибка сохранения ремонта');
+    throw new Error(getApiErrorMessage(result, 'Ошибка сохранения ремонта'));
   }
 
   return result;
 }
 
-export async function fetchRepairManagers() {
-  const response = await fetch(MANAGERS_ENDPOINT, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-    },
-  });
+export async function fetchCurrentUser() {
+  const result = await apiFetch(USER_ENDPOINT);
 
-  const result = await response.json();
+  return result?.data || result?.user || result || null;
+}
+
+export async function fetchRepairManagers() {
+  const result = await apiFetch(MANAGERS_ENDPOINT);
 
   if (result?.error) {
-    throw new Error(result.msg || 'Ошибка загрузки менеджеров');
+    throw new Error(getApiErrorMessage(result, 'Ошибка загрузки менеджеров'));
   }
 
   return Array.isArray(result?.data) ? result.data : [];
 }
 
 export async function fetchSalesModels() {
-  const response = await fetch(MODELS_ENDPOINT, {
-    method: 'GET',
-    credentials: 'include',
-    headers: {
-      Accept: 'application/json',
-    },
-  });
-
-  const result = await response.json();
+  const result = await apiFetch(MODELS_ENDPOINT);
 
   if (result?.error) {
-    throw new Error(result.msg || 'Ошибка загрузки моделей');
+    throw new Error(getApiErrorMessage(result, 'Ошибка загрузки моделей'));
   }
 
   if (Array.isArray(result)) {
