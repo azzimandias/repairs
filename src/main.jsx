@@ -1,5 +1,7 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { AutoComplete, Button, Checkbox, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Segmented, Select, Timeline, notification } from 'antd';
+import { DownOutlined } from '@ant-design/icons';
+import { AutoComplete, Button, Checkbox, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Segmented, Select, Spin, notification } from 'antd';
+import { useRef } from 'react';
 import ruRU from 'antd/locale/ru_RU';
 import dayjs from 'dayjs';
 import { createRoot } from 'react-dom/client';
@@ -11,11 +13,13 @@ import {
   FilePlus2,
   Home,
   Plus,
+  Printer,
   Save,
   Search,
+  Send,
   Trash2,
 } from 'lucide-react';
-import { fetchCurrentUser, fetchRepair, fetchRepairManagers, fetchRepairs, fetchSalesModels, saveRepair } from './api';
+import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOrganizationRequisites, fetchRepair, fetchRepairManagers, fetchRepairOptions, fetchRepairOrganizations, fetchRepairs, fetchSalesModels, fetchSpareModel, saveRepair } from './api';
 import 'antd/dist/reset.css';
 import './styles.css';
 
@@ -43,6 +47,13 @@ const emptyRequestDetails = {
     postalAddress: '',
     requestManager: '',
     approvedWorks: '',
+    clientComment: '',
+    organizationId: '',
+    payerId: '',
+    conveyanceId: '',
+    insurance: 0,
+    sturdyPackaging: 0,
+    adminComment: '',
   },
   repair: {
     engineer: '',
@@ -63,6 +74,15 @@ const emptyRequestDetails = {
   parts: [],
 };
 
+function createEmptyRequestDetails() {
+  return {
+    equipment: { ...emptyRequestDetails.equipment },
+    client: { ...emptyRequestDetails.client },
+    repair: { ...emptyRequestDetails.repair },
+    parts: [],
+  };
+}
+
 const fieldLabels = {
   model: 'Модель',
   serialNumber: 'Серийный номер',
@@ -81,6 +101,13 @@ const fieldLabels = {
   postalAddress: 'Почтовый адрес',
   requestManager: 'Менеджер заявки',
   approvedWorks: 'Утвержденные работы',
+  clientComment: 'Комментарий о клиенте',
+  organizationId: 'Организация в базе',
+  payerId: 'Плательщик',
+  conveyanceId: 'Способ транспортировки',
+  insurance: 'Страховка',
+  sturdyPackaging: 'Жёсткая упаковка',
+  adminComment: 'Комментарий для администраторов',
   engineer: 'Инженер заявки',
   faultDescription: 'Описание неисправности',
   faultReasons: 'Причины неисправности',
@@ -99,32 +126,82 @@ const fieldLabels = {
 
 const dateFieldNames = new Set(['saleOrRepairDate']);
 
-const selectFieldOptions = {
-  model: [],
-  pickupPoint: [],
-  engineer: [],
-  faultDescription: [],
-  faultReasons: [],
-  expectedRepair: [],
-  repair: [],
-  usageViolation: [],
+const remoteSelectFieldNames = {
+  engineer: 'engineers',
+  faultDescription: 'defects',
+  faultReasons: 'defect_causes',
+  expectedRepair: 'repair_types',
+  requestManager: 'managers',
+  organizationId: 'organizations',
+  payerId: 'requisites',
+  conveyanceId: 'conveyances',
 };
 
-const requestStatusRoadmap = [
-  { number: 100, status: 'Заявка создана', role: 'Склад' },
-  { number: 200, status: 'Заявка обработана', role: 'Склад' },
-  { number: 300, status: 'Принята в сервис-центре', role: 'Сервис-центр' },
-  { number: 400, status: 'Диагностика проведена', role: 'Сервис-центр' },
-  { number: 450, status: 'Акт диагностики отправлен', role: 'Менеджер' },
-  { number: 500, status: 'Объем работы согласован', role: 'Менеджер' },
-  { number: 550, status: 'Запчасти получены', role: 'Сервис-центр' },
-  { number: 600, status: 'Работа завершена', role: 'Сервис-центр' },
-  { number: 700, status: 'Счет выставлен', role: 'Администратор' },
-  { number: 800, status: 'Счет оплачен', role: 'Администратор' },
-  { number: 850, status: 'Отправлено на склад', role: 'Склад' },
-  { number: 900, status: 'Доставлено на склад выдачи', role: 'Склад' },
-  { number: 1000, status: 'Оборудование выдано', role: 'Склад' },
+const localSelectFieldOptions = {
+  approvedWorks: [
+    { value: 0, label: 'Неизвестно' },
+    { value: 1, label: 'Только диагностика' },
+    { value: 2, label: 'Диагностика и ремонт' },
+  ],
+  repair: [
+    { value: 0, label: 'Неизвестно' },
+    { value: 1, label: 'Платный' },
+    { value: 2, label: 'От производителя (гарантия)' },
+    { value: 3, label: 'От сервис-центра (гарантия)' },
+  ],
+  usageViolation: [
+    { value: 0, label: 'Нет' },
+    { value: 1, label: 'Да' },
+  ],
+  insurance: [
+    { value: 0, label: 'Нет' },
+    { value: 1, label: 'Да' },
+  ],
+  sturdyPackaging: [
+    { value: 0, label: 'Нет' },
+    { value: 1, label: 'Да' },
+  ],
+};
+
+const emptyRepairOptions = {
+  engineers: [],
+  defects: [],
+  defect_causes: [],
+  repair_types: [],
+  managers: [],
+  organizations: [],
+  requisites: [],
+  conveyances: [],
+};
+
+const printDocumentItems = [
+  { key: 'repair-request', label: 'Заявка на ремонт', aclIds: [78, 79], minimumStatus: 0 },
+  { key: 'diagnostics-act', label: 'Акт диагностики', aclIds: [79, 80], minimumStatus: 400 },
+  { key: 'completed-repair-act', label: 'Акт ремонта', aclIds: [79], minimumStatus: 400 },
+  { key: 'invoice-request', label: 'Заявка на счет', aclIds: [79, 80], minimumStatus: 600 },
 ];
+
+const requestStatusRoadmap = [
+  { number: 100, status: 'В обработке', role: 'Склад', completionLabel: 'Заявка обработана' },
+  { number: 200, status: 'Ожидает приёма в сервис', role: 'Сервис-центр', completionLabel: 'Заявка принята в сервис' },
+  { number: 300, status: 'На диагностике', role: 'Сервис-центр', completionLabel: 'Диагностика проведена' },
+  { number: 400, status: 'Подготовка акта диагностики', role: 'Менеджер', completionLabel: 'Акт диагностики подготовлен' },
+  { number: 450, status: 'Согласование объёма работ', role: 'Менеджер', completionLabel: 'Объём работ согласован' },
+  { number: 500, status: 'Ожидает запчастей', role: 'Сервис-центр', completionLabel: 'Запчасти получены' },
+  { number: 550, status: 'В ремонте', role: 'Сервис-центр', completionLabel: 'Ремонт завершён' },
+  { number: 600, status: 'Выставление счёта', role: 'Администратор', completionLabel: 'Счёт выставлен' },
+  { number: 700, status: 'Ожидает оплаты', role: 'Администратор', completionLabel: 'Счёт оплачен' },
+  { number: 800, status: 'Ожидает отправки на склад', role: 'Склад', completionLabel: 'Отправлено на склад' },
+  { number: 850, status: 'В пути на склад выдачи', role: 'Склад', completionLabel: 'Доставлено на склад выдачи' },
+  { number: 900, status: 'Готово к выдаче', role: 'Склад', completionLabel: 'Оборудование выдано' },
+  { number: 1000, status: 'Заявка закрыта', role: 'Склад' },
+];
+
+const roadmapRoleAcl = {
+  Склад: 78,
+  'Сервис-центр': 79,
+  Менеджер: 80,
+};
 
 function mapBackendRepair(repair) {
   const modelName = Array.isArray(repair.model) ? repair.model[0]?.name_seo : repair.model?.name_seo;
@@ -175,22 +252,32 @@ function mapBackendRepairDetails(repair) {
       email: repair.client_email || repair.email || '',
       phone: repair.client_tel || repair.client_phone || repair.phone || '',
       postalAddress: repair.client_post || repair.client_address || repair.post_address || '',
-      requestManager: summary.manager,
-      approvedWorks: repair.approved_work_name || String(repair.approved_work || ''),
+      requestManager:
+        repair.manager_id ??
+        (Array.isArray(repair.manager) ? repair.manager[0]?.id : repair.manager?.id) ??
+        summary.manager,
+      approvedWorks: repair.approved_work ?? '',
+      clientComment: repair.client_commet || '',
+      organizationId: repair.client_org_id ?? '',
+      payerId: repair.client_org_requisit_id ?? '',
+      conveyanceId: repair.conveyance_id ?? '',
+      insurance: repair.insurance ?? 0,
+      sturdyPackaging: repair.sturdy_packaging ?? 0,
+      adminComment: repair.comment_price || '',
     },
     repair: {
-      engineer: summary.engineer,
-      faultDescription: repair.engin_defect_note || '',
-      faultReasons: repair.probable_causes_note || '',
-      expectedRepair: repair.engin_list_repairs_note || '',
-      repair: repair.act_text_job || repair.repair_note || repair.repairs_note || '',
-      usageViolation: repair.engin_foul_comment || repair.violation_note || repair.operating_rules_violation || '',
+      engineer: repair.engin_id ?? repair.engineer_id ?? (Array.isArray(repair.engin) ? repair.engin[0]?.id : repair.engin?.id) ?? summary.engineer,
+      faultDescription: repair.defect_id ?? repair.engin_defect_id ?? repair.engin_defect_note ?? '',
+      faultReasons: repair.defect_cause_id ?? repair.probable_causes_id ?? repair.probable_causes_note ?? '',
+      expectedRepair: repair.repair_type_id ?? repair.list_repairs_id ?? repair.engin_list_repairs_note ?? '',
+      repair: repair.category_repairs ?? '',
+      usageViolation: repair.engin_foul ?? '',
       diagnosisMinutes: repair.engin_time_job_diagnostics || repair.diagnostics_work_time || repair.diagnosis_minutes || '',
-      comment: repair.engin_comment || repair.client_commet || repair.comment || '',
+      comment: repair.engin_foul_comment || repair.violation_note || repair.operating_rules_violation_comment || '',
       diagnosisTotal: repair.diagnostics_price || repair.diagnosis_total || '',
       repairMinutes: repair.engin_time_job || repair.repair_work_time || repair.repair_minutes || '',
       repairTotal: repair.engin_price || repair.repair_price || repair.repair_total || '',
-      spareWaitingComment: repair.wait_spares_comment || '',
+      spareWaitingComment: repair.wait_spares_comment || repair.engin_comment || '',
       diagnosisAct: repair.act_text_diagnostic || repair.diagnostics_act || '',
       workAct: repair.act_text_job || repair.work_act || '',
     },
@@ -246,11 +333,12 @@ function mapBackendSpare(spare) {
   return {
     id: spare.id,
     type: spare.type,
+    deleted: Number(spare.deleted || 0),
     source: Number(spare.type) === 0 ? 'Наша' : 'Покупная',
     modelId: spare.model_id || '',
     model: spare.name || spare.model_name || String(spare.model_id || ''),
     qty: spare.count || 1,
-    stock: spare.stock_count ?? spare.count_sklad ?? 0,
+    stock: spare.remaining_stock ?? spare.stock ?? spare.stock_count ?? spare.count_sklad ?? 0,
     price: spare.price || 0,
     comment: spare.comment || '',
   };
@@ -283,11 +371,61 @@ function mapSalesModelOption(model) {
   return {
     id: model.id ?? model.model_id ?? model.value ?? model.name ?? model.name_seo,
     label: model.name_seo || model.name || model.label || String(model.id ?? ''),
+    stock: model.remaining_stock ?? null,
   };
 }
 
 function isOwnPart(part) {
   return part.source === 'Наша' || part.source === 'РќР°С€Р°' || Number(part.type) === 0;
+}
+
+function isVisiblePart(part) {
+  return Number(part.deleted || 0) !== 1;
+}
+
+function hasUserAcl(user, aclId) {
+  if (!Array.isArray(user?.acls)) {
+    return false;
+  }
+
+  return user.acls.some((acl) => {
+    const value = typeof acl === 'object' && acl !== null ? acl.id ?? acl.id_resources ?? acl.resource_id : acl;
+
+    return Number(value) === aclId;
+  });
+}
+
+function isAdministratorUser(user) {
+  if (!user) {
+    return false;
+  }
+
+  if ([user.is_admin, user.admin, user.is_super_admin, user.super_admin].some((value) => value === true || Number(value) === 1)) {
+    return true;
+  }
+
+  const roleValues = [user.role, user.role_name, user.position, user.position_name, user.group, user.group_name, user.type]
+    .concat(Array.isArray(user.roles) ? user.roles : [])
+    .map((value) => (typeof value === 'object' && value !== null ? value.name ?? value.title ?? value.label : value))
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase());
+
+  return (
+    roleValues.some((value) => value.includes('администратор') || value.includes('administrator') || value === 'admin') ||
+    Object.values(roadmapRoleAcl).every((aclId) => hasUserAcl(user, aclId))
+  );
+}
+
+function canUserManageRoadmapRole(user, role) {
+  if (!role) {
+    return false;
+  }
+
+  if (role === 'Администратор') {
+    return isAdministratorUser(user);
+  }
+
+  return hasUserAcl(user, roadmapRoleAcl[role]);
 }
 
 function App({ currentUser }) {
@@ -329,10 +467,15 @@ function AppRoot() {
       locale={ruRU}
       theme={{
         token: {
-          colorPrimary: '#2d6fd3',
-          borderRadius: 7,
-          colorBgContainer: '#f7fbff',
-          colorBorder: '#c7d9ee',
+          colorPrimary: '#1f4f82',
+          colorInfo: '#1f4f82',
+          colorBgContainer: '#ffffff',
+          colorBorder: '#b8c4d1',
+          colorText: '#182433',
+          colorTextSecondary: '#536274',
+          borderRadius: 4,
+          controlHeight: 32,
+          fontSize: 13,
           fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
         },
       }}
@@ -530,8 +673,13 @@ function RequestsListPage({ currentUser }) {
     window.open(`/requests/${encodeURIComponent(requestId)}`, '_blank', 'noopener,noreferrer');
   }
 
+  function createRequest() {
+    openRequest('new');
+  }
+
   function exportExcel() {
     const columns = [
+      'ID',
       'Дата',
       'UID',
       'Оборудование',
@@ -544,6 +692,7 @@ function RequestsListPage({ currentUser }) {
       'Статус заявки',
     ];
     const rows = requests.map((request) => [
+      request.id,
       request.date,
       request.uid,
       request.equipment,
@@ -591,7 +740,7 @@ function RequestsListPage({ currentUser }) {
             <Button className="app-button" icon={<Download size={16} />} onClick={exportExcel}>
               Excel
             </Button>
-            <Button className="app-button" type="primary" icon={<FilePlus2 size={16} />}>
+            <Button className="app-button" type="primary" icon={<FilePlus2 size={16} />} onClick={createRequest}>
               Создать заявку
             </Button>
           </div>
@@ -709,6 +858,7 @@ function RequestsListPage({ currentUser }) {
         <table className="requests-table">
           <thead>
             <tr>
+              <th>ID</th>
               <th>Дата</th>
               <th>UID</th>
               <th>Оборудование</th>
@@ -725,7 +875,7 @@ function RequestsListPage({ currentUser }) {
             {isLoading
               ? Array.from({ length: pageSize }).map((_, index) => (
                   <tr className="skeleton-row" key={`request-skeleton-${index}`}>
-                    {Array.from({ length: 10 }).map((__, cellIndex) => (
+                    {Array.from({ length: 11 }).map((__, cellIndex) => (
                       <td key={`request-skeleton-${index}-${cellIndex}`}>
                         <span className="skeleton-line" />
                       </td>
@@ -734,6 +884,7 @@ function RequestsListPage({ currentUser }) {
                 ))
               : visibleRequests.map((request) => (
                   <tr key={request.id} onDoubleClick={() => openRequest(request.id)} title="Двойной клик откроет заявку">
+                    <td className="mono">{request.id}</td>
                     <td>{formatDate(request.date)}</td>
                     <td className="mono">{request.uid}</td>
                     <td>{request.equipment}</td>
@@ -773,26 +924,65 @@ function getNearbyPages(currentPage, totalPages) {
 }
 
 function RequestPage({ currentUser, requestId }) {
+  const isNewRequest = requestId === 'new';
+  const canEditEquipment = hasUserAcl(currentUser, 78);
+  const canEditRepair = hasUserAcl(currentUser, 79);
+  const canEditClient = hasUserAcl(currentUser, 80);
   const [request, setRequest] = useState(emptyRequest);
   const [details, setDetails] = useState(emptyRequestDetails);
   const [parts, setParts] = useState([]);
   const [initialSnapshot, setInitialSnapshot] = useState('');
   const [salesModels, setSalesModels] = useState([]);
+  const [repairOptions, setRepairOptions] = useState(emptyRepairOptions);
+  const [loadingSpareRows, setLoadingSpareRows] = useState({});
   const [loadError, setLoadError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [downloadingDocument, setDownloadingDocument] = useState('');
+  const [isCreatingInvoiceRequest, setIsCreatingInvoiceRequest] = useState(false);
+  const organizationSearchTimerRef = useRef(null);
+  const organizationSearchRequestRef = useRef(0);
   const [notificationApi, notificationContext] = notification.useNotification();
   const currentSnapshot = buildRepairSnapshot(request, details, parts);
   const hasChanges = Boolean(initialSnapshot) && currentSnapshot !== initialSnapshot;
   const displayEquipment = details.equipment.model || request.equipment;
   const displayClient = details.client.companyName || request.client;
+  const effectiveStatusNumber = getEffectiveStatusNumber(request);
+  const currentRoadmapStatus = getRoadmapStatusByNumber(effectiveStatusNumber);
+  const canChangeStatus = canUserManageRoadmapRole(currentUser, currentRoadmapStatus?.role);
+  const availablePrintDocumentItems = printDocumentItems.filter(
+    (item) =>
+      effectiveStatusNumber >= item.minimumStatus &&
+      (isAdministratorUser(currentUser) || item.aclIds.some((aclId) => hasUserAcl(currentUser, aclId))),
+  );
+  const canCreateInvoiceRequest =
+    Boolean(request.id) &&
+    effectiveStatusNumber >= 600 &&
+    (isAdministratorUser(currentUser) || hasUserAcl(currentUser, 79));
 
   useEffect(() => {
-    document.title = `Сервис-центр | ${requestId}`;
-  }, [requestId]);
+    document.title = isNewRequest ? 'Сервис-центр | Новая заявка' : `Сервис-центр | ${requestId}`;
+  }, [isNewRequest, requestId]);
 
   useEffect(() => {
     let ignore = false;
+
+    if (isNewRequest) {
+      const nextRequest = { ...emptyRequest };
+      const nextDetails = createEmptyRequestDetails();
+
+      setRequest(nextRequest);
+      setDetails(nextDetails);
+      setParts([]);
+      setLoadingSpareRows({});
+      setInitialSnapshot(buildRepairSnapshot(nextRequest, nextDetails, []));
+      setLoadError('');
+      setIsLoading(false);
+
+      return () => {
+        ignore = true;
+      };
+    }
 
     setIsLoading(true);
 
@@ -808,6 +998,7 @@ function RequestPage({ currentUser, requestId }) {
         setRequest(mappedRequest);
         setDetails(mappedDetails);
         setParts(mappedDetails.parts);
+        setLoadingSpareRows({});
         setInitialSnapshot(buildRepairSnapshot(mappedRequest, mappedDetails, mappedDetails.parts));
         setLoadError('');
       })
@@ -816,6 +1007,7 @@ function RequestPage({ currentUser, requestId }) {
           setRequest(emptyRequest);
           setDetails(emptyRequestDetails);
           setParts([]);
+          setLoadingSpareRows({});
           setInitialSnapshot('');
           setLoadError('Ошибка загрузки заявки');
         }
@@ -829,20 +1021,21 @@ function RequestPage({ currentUser, requestId }) {
     return () => {
       ignore = true;
     };
-  }, [requestId]);
+  }, [isNewRequest, requestId]);
 
   useEffect(() => {
     let ignore = false;
 
-    fetchSalesModels()
-      .then((models) => {
+    Promise.allSettled([fetchSalesModels(), fetchRepairOptions(), fetchRepairManagers()])
+      .then(([modelsResult, optionsResult, managersResult]) => {
         if (!ignore) {
-          setSalesModels(models.map(mapSalesModelOption));
-        }
-      })
-      .catch(() => {
-        if (!ignore) {
-          setSalesModels([]);
+          setSalesModels(modelsResult.status === 'fulfilled' ? modelsResult.value.map(mapSalesModelOption) : []);
+          setRepairOptions((current) => ({
+            ...(optionsResult.status === 'fulfilled' ? optionsResult.value : emptyRepairOptions),
+            managers: managersResult.status === 'fulfilled' ? managersResult.value : [],
+            organizations: current.organizations || [],
+            requisites: current.requisites || [],
+          }));
         }
       });
 
@@ -851,17 +1044,160 @@ function RequestPage({ currentUser, requestId }) {
     };
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    const organizationId = details.client.organizationId;
+
+    if (isEmptyRemoteSelectValue(organizationId)) {
+      setRepairOptions((current) => ({ ...current, requisites: [] }));
+      return () => {
+        ignore = true;
+      };
+    }
+
+    setRepairOptions((current) => ({ ...current, requisites: [] }));
+
+    fetchOrganizationRequisites(organizationId)
+      .then((requisites) => {
+        if (!ignore) {
+          setRepairOptions((current) => ({ ...current, requisites }));
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setRepairOptions((current) => ({ ...current, requisites: [] }));
+        }
+      });
+
+    fetchRepairOrganizations(String(organizationId))
+      .then((organizations) => {
+        if (!ignore) {
+          setRepairOptions((current) => ({
+            ...current,
+            organizations: mergeOptionsById(current.organizations, organizations),
+          }));
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      ignore = true;
+    };
+  }, [details.client.organizationId]);
+
+  useEffect(
+    () => () => {
+      window.clearTimeout(organizationSearchTimerRef.current);
+    },
+    [],
+  );
+
+  function searchOrganizations(value) {
+    const query = String(value || '').trim();
+    const requestNumber = organizationSearchRequestRef.current + 1;
+
+    organizationSearchRequestRef.current = requestNumber;
+    window.clearTimeout(organizationSearchTimerRef.current);
+
+    if (!query) {
+      setRepairOptions((current) => ({ ...current, organizations: [] }));
+      return;
+    }
+
+    organizationSearchTimerRef.current = window.setTimeout(async () => {
+      try {
+        const organizations = await fetchRepairOrganizations(query);
+
+        if (organizationSearchRequestRef.current === requestNumber) {
+          setRepairOptions((current) => ({ ...current, organizations }));
+        }
+      } catch (error) {
+        if (organizationSearchRequestRef.current === requestNumber) {
+          setRepairOptions((current) => ({ ...current, organizations: [] }));
+          notificationApi.error({
+            title: 'Не удалось найти организацию',
+            description: error.message || 'Сервер вернул ошибку поиска.',
+          });
+        }
+      }
+    }, 300);
+  }
+
   function addPart(source) {
     const isOwn = source === 'Наша';
 
     setParts((current) => [
       ...current,
-      { source, type: isOwn ? 0 : 1, modelId: '', model: '', qty: 1, stock: isOwn ? 0 : '-', price: 0, comment: '' },
+      { source, type: isOwn ? 0 : 1, deleted: 0, modelId: '', model: '', qty: 1, stock: isOwn ? 0 : '-', price: 0, comment: '' },
     ]);
   }
 
   function removePart(index) {
-    setParts((current) => current.filter((_, partIndex) => partIndex !== index));
+    const shouldSoftDelete = Boolean(parts[index]?.id);
+
+    setParts((current) =>
+      shouldSoftDelete
+        ? current.map((part, partIndex) => (partIndex === index ? { ...part, deleted: 1 } : part))
+        : current.filter((_, partIndex) => partIndex !== index),
+    );
+    setLoadingSpareRows((current) => {
+      const nextRows = {};
+
+      Object.entries(current).forEach(([rowIndex, isLoadingRow]) => {
+        const numericIndex = Number(rowIndex);
+
+        if (shouldSoftDelete) {
+          if (numericIndex !== index) {
+            nextRows[numericIndex] = isLoadingRow;
+          }
+
+          return;
+        }
+
+        if (numericIndex < index) {
+          nextRows[numericIndex] = isLoadingRow;
+        }
+
+        if (numericIndex > index) {
+          nextRows[numericIndex - 1] = isLoadingRow;
+        }
+      });
+
+      return nextRows;
+    });
+  }
+
+  async function selectOwnPartModel(index, modelName, modelId) {
+    updatePartRow(setParts, index, {
+      model: modelName,
+      modelId,
+    });
+
+    if (!modelId) {
+      setLoadingSpareRows((current) => ({ ...current, [index]: false }));
+      return;
+    }
+
+    setLoadingSpareRows((current) => ({ ...current, [index]: true }));
+
+    try {
+      const spareModel = await fetchSpareModel(modelId);
+
+      updatePartRow(setParts, index, {
+        model: spareModel?.name_seo || spareModel?.name || modelName,
+        modelId: spareModel?.id || modelId,
+        price: spareModel?.price ?? spareModel?.price_0 ?? 0,
+        stock: spareModel?.remaining_stock ?? spareModel?.stock ?? 0,
+      });
+      clampPartQtyToStock(setParts, index);
+    } catch (error) {
+      notificationApi.error({
+        title: 'Не удалось загрузить запчасть',
+        description: error.message || 'Сервер не вернул цену и остаток по модели.',
+      });
+    } finally {
+      setLoadingSpareRows((current) => ({ ...current, [index]: false }));
+    }
   }
 
   function updateDetail(section, field, value) {
@@ -874,10 +1210,30 @@ function RequestPage({ currentUser, requestId }) {
     }));
   }
 
+  function updateClientDetail(field, value) {
+    setDetails((current) => ({
+      ...current,
+      client: {
+        ...current.client,
+        [field]: value,
+        ...(field === 'organizationId' ? { payerId: '' } : {}),
+      },
+    }));
+  }
+
+  function updateEquipmentModel(modelName, modelId) {
+    updateDetail('equipment', 'model', modelName);
+    setRequest((current) => ({ ...current, model_id: modelId || '' }));
+  }
+
   function applySavedRepair(result, fallbackRequest = request, fallbackDetails = details, fallbackParts = parts) {
-    const nextRequest = result ? mapBackendRepair(result) : fallbackRequest;
-    const nextDetails = result ? mapBackendRepairDetails(result) : fallbackDetails;
-    const nextParts = result ? nextDetails.parts : fallbackParts;
+    const savedRepair = getSavedRepair(result);
+    const mergedRepair = savedRepair
+      ? { ...buildSaveRepairPayload(fallbackRequest, fallbackDetails, fallbackParts, repairOptions), ...savedRepair }
+      : null;
+    const nextRequest = mergedRepair ? mapBackendRepair(mergedRepair) : fallbackRequest;
+    const nextDetails = mergedRepair ? mapBackendRepairDetails(mergedRepair) : fallbackDetails;
+    const nextParts = savedRepair?.spares ? nextDetails.parts : fallbackParts;
 
     setRequest(nextRequest);
     setDetails(nextDetails);
@@ -885,6 +1241,49 @@ function RequestPage({ currentUser, requestId }) {
     setInitialSnapshot(buildRepairSnapshot(nextRequest, nextDetails, nextParts));
 
     return { nextRequest, nextDetails, nextParts };
+  }
+
+  async function handleDocumentDownload({ key }) {
+    if (!request.id || downloadingDocument) {
+      return;
+    }
+
+    setDownloadingDocument(key);
+
+    try {
+      await downloadRepairDocument(request.id, key);
+    } catch (error) {
+      notificationApi.error({
+        title: 'Не удалось скачать документ',
+        description: error.message || 'Сервер вернул ошибку формирования документа.',
+      });
+    } finally {
+      setDownloadingDocument('');
+    }
+  }
+
+  async function handleCreateInvoiceRequest() {
+    if (!canCreateInvoiceRequest || isCreatingInvoiceRequest) {
+      return;
+    }
+
+    setIsCreatingInvoiceRequest(true);
+
+    try {
+      const result = await createInvoiceRequest(request.id);
+
+      notificationApi.success({
+        title: result?.alreadyExists ? 'Заявка уже отправлена' : 'Заявка отправлена',
+        description: result?.message || 'Заявка на счёт успешно создана.',
+      });
+    } catch (error) {
+      notificationApi.error({
+        title: 'Не удалось отправить заявку',
+        description: error.message || 'Сервер вернул ошибку создания заявки на счёт.',
+      });
+    } finally {
+      setIsCreatingInvoiceRequest(false);
+    }
   }
 
   async function saveRepairPayload(payload, fallbackRequest, successTitle, successDescription) {
@@ -913,10 +1312,50 @@ function RequestPage({ currentUser, requestId }) {
   }
 
   async function moveToNextStatus() {
+    if (!canChangeStatus) {
+      return;
+    }
+
     const nextStatus = getNextRoadmapStatus(request);
 
     if (!nextStatus) {
       return;
+    }
+
+    if (nextStatus.number === 500) {
+      const hasOrganization = Number(details.client.organizationId) > 0;
+
+      if (!hasOrganization && (!String(details.client.companyName).trim() || !String(details.client.city).trim())) {
+        notificationApi.error({
+          title: 'Не указана организация',
+          description: 'Выберите организацию из базы или заполните её наименование и город.',
+        });
+        return;
+      }
+
+      if (Number(details.repair.repair) === 1 && hasOrganization && Number(details.client.payerId) <= 0) {
+        notificationApi.error({
+          title: 'Не выбран плательщик',
+          description: 'Для платного ремонта выберите плательщика в блоке «Клиент».',
+        });
+        return;
+      }
+
+      if (Number(details.client.conveyanceId) <= 0) {
+        notificationApi.error({
+          title: 'Не выбран способ транспортировки',
+          description: 'Выберите способ транспортировки в блоке «Клиент» перед изменением статуса.',
+        });
+        return;
+      }
+
+      if (![1, 2].includes(Number(details.client.approvedWorks))) {
+        notificationApi.error({
+          title: 'Не согласован объём работ',
+          description: 'Выберите утверждённый объём работ в блоке «Клиент».',
+        });
+        return;
+      }
     }
 
     const nextRequest = {
@@ -926,7 +1365,7 @@ function RequestPage({ currentUser, requestId }) {
     };
 
     await saveRepairPayload(
-      buildSaveRepairPayload(nextRequest, details, parts),
+      buildSaveRepairPayload(nextRequest, details, parts, repairOptions),
       nextRequest,
       'Статус изменён',
       `Заявка переведена в статус «${nextStatus.status}».`,
@@ -934,6 +1373,10 @@ function RequestPage({ currentUser, requestId }) {
   }
 
   async function moveToPreviousStatus() {
+    if (!canChangeStatus) {
+      return;
+    }
+
     const previousStatus = getPreviousRoadmapStatus(request);
 
     if (!previousStatus) {
@@ -947,7 +1390,7 @@ function RequestPage({ currentUser, requestId }) {
     };
 
     await saveRepairPayload(
-      buildSaveRepairPayload(previousRequest, details, parts),
+      buildSaveRepairPayload(previousRequest, details, parts, repairOptions),
       previousRequest,
       'Статус изменён',
       `Заявка переведена в статус «${previousStatus.status}».`,
@@ -962,11 +1405,17 @@ function RequestPage({ currentUser, requestId }) {
     setIsSaving(true);
 
     try {
-      const result = await saveRepair(buildSaveRepairPayload(request, details, parts));
+      const result = await saveRepair(buildSaveRepairPayload(request, details, parts, repairOptions));
+      const { nextRequest } = applySavedRepair(result);
 
-      applySavedRepair(result);
+      if (!request.id && nextRequest.id) {
+        const requestUrl = `/requests/${encodeURIComponent(nextRequest.id)}`;
+
+        window.history.replaceState(null, '', requestUrl);
+        document.title = `Сервис-центр | ${nextRequest.id}`;
+      }
       notificationApi.success({
-        title: 'Заявка сохранена',
+        title: request.id ? 'Заявка сохранена' : 'Заявка создана',
         description: result?.msg || result?.message || 'Изменения успешно отправлены на сервер.',
       });
     } catch (error) {
@@ -978,6 +1427,23 @@ function RequestPage({ currentUser, requestId }) {
       setIsSaving(false);
     }
   }
+
+  useEffect(() => {
+    function handleSaveShortcut(event) {
+      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 's') {
+        return;
+      }
+
+      event.preventDefault();
+      saveRequest();
+    }
+
+    window.addEventListener('keydown', handleSaveShortcut);
+
+    return () => {
+      window.removeEventListener('keydown', handleSaveShortcut);
+    };
+  }, [hasChanges, isSaving, request, details, parts]);
 
   return (
     <main className="app-shell detail-shell">
@@ -995,7 +1461,16 @@ function RequestPage({ currentUser, requestId }) {
             ) : (
               <div className="detail-heading">
                 <div className="detail-title-row">
-                  <span className="detail-request-id">Заявка {request.id}</span>
+                  <span className="detail-request-id">
+                    <span className="detail-request-id-row">
+                      <span>ID</span>
+                      <span>{request.id || 'Новая'}</span>
+                    </span>
+                    <span className="detail-request-id-row">
+                      <span>UID</span>
+                      <span>{request.uid || '-'}</span>
+                    </span>
+                  </span>
                   <h1>{displayEquipment}</h1>
                   <span className="detail-client-name">{displayClient}</span>
                 </div>
@@ -1009,6 +1484,36 @@ function RequestPage({ currentUser, requestId }) {
             </div>
           ) : (
             <div className="detail-meta">
+              {canCreateInvoiceRequest && (
+                <Button
+                  className="app-button"
+                  icon={<Send size={16} />}
+                  loading={isCreatingInvoiceRequest}
+                  disabled={isCreatingInvoiceRequest}
+                  onClick={handleCreateInvoiceRequest}
+                >
+                  Отправить на счёт
+                </Button>
+              )}
+              <Dropdown
+                menu={{
+                  items: availablePrintDocumentItems.map(({ key, label }) => ({ key, label })),
+                  onClick: handleDocumentDownload,
+                }}
+                placement="bottomRight"
+                trigger={['click']}
+                disabled={!request.id || availablePrintDocumentItems.length === 0 || Boolean(downloadingDocument)}
+              >
+                <Button
+                  className="app-button"
+                  icon={<Printer size={16} />}
+                  loading={Boolean(downloadingDocument)}
+                  disabled={!request.id || availablePrintDocumentItems.length === 0 || Boolean(downloadingDocument)}
+                >
+                  Распечатать
+                  <DownOutlined />
+                </Button>
+              </Dropdown>
               <Button
                 className="app-button"
                 type="primary"
@@ -1035,16 +1540,24 @@ function RequestPage({ currentUser, requestId }) {
                 title="Оборудование"
                 fields={details.equipment}
                 onChange={(field, value) => updateDetail('equipment', field, value)}
+                modelOptions={salesModels}
+                onModelChange={updateEquipmentModel}
+                disabled={!canEditEquipment}
               />
               <FormBlock
                 title="Клиент"
                 fields={details.client}
-                onChange={(field, value) => updateDetail('client', field, value)}
+                onChange={updateClientDetail}
+                selectOptions={repairOptions}
+                onSelectSearch={{ organizationId: searchOrganizations }}
+                disabled={!canEditClient}
               />
               <FormBlock
                 title="Ремонтные работы"
                 fields={details.repair}
                 onChange={(field, value) => updateDetail('repair', field, value)}
+                selectOptions={repairOptions}
+                disabled={!canEditRepair}
                 wide
               />
 
@@ -1052,15 +1565,15 @@ function RequestPage({ currentUser, requestId }) {
                 <div className="block-title-row">
                   <h2>Запчасти</h2>
                   <div className="parts-actions">
-                    <Button className="app-button" icon={<Plus size={16} />} onClick={() => addPart('Покупная')}>
+                    <Button className="app-button" disabled={!canEditRepair} icon={<Plus size={16} />} onClick={() => addPart('Покупная')}>
                       Добавить покупную запчасть
                     </Button>
-                    <Button className="app-button" icon={<Plus size={16} />} onClick={() => addPart('Наша')}>
+                    <Button className="app-button" disabled={!canEditRepair} icon={<Plus size={16} />} onClick={() => addPart('Наша')}>
                       Добавить нашу запчасть
                     </Button>
                   </div>
                 </div>
-                {parts.length > 0 && (
+                {parts.some(isVisiblePart) && (
                   <div className="parts-table-wrap">
                     <table className="parts-table">
                     <thead>
@@ -1069,30 +1582,38 @@ function RequestPage({ currentUser, requestId }) {
                         <th>Модель</th>
                         <th>Количество</th>
                         <th>На складе</th>
-                        <th>Цена</th>
+                        <th>Цена $</th>
                         <th>Комментарий</th>
                         <th></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {parts.map((part, index) => (
-                        <tr key={`${part.source}-${index}`}>
+                      {parts.map((part, index) => {
+                        if (!isVisiblePart(part)) {
+                          return null;
+                        }
+
+                        const isLoadingSpare = Boolean(loadingSpareRows[index]);
+                        const isOwnSpare = isOwnPart(part);
+                        const stockLimit = isOwnSpare ? getPartStockLimit(part) : null;
+
+                        return (
+                        <tr className={isLoadingSpare ? 'part-row-loading' : ''} key={`${part.source}-${index}`}>
                           <td>
                             <Input value={part.source} readOnly />
                           </td>
                         <td>
-                          {isOwnPart(part) ? (
+                          {isOwnSpare ? (
                             <PartModelSearch
                               models={salesModels}
                               value={part.model}
-                              onChange={(modelName, modelId) => {
-                                updatePart(setParts, index, 'model', modelName);
-                                updatePart(setParts, index, 'modelId', modelId);
-                              }}
+                              disabled={!canEditRepair}
+                              onChange={(modelName, modelId) => selectOwnPartModel(index, modelName, modelId)}
                             />
                           ) : (
                             <Input
                               value={part.model}
+                              disabled={!canEditRepair}
                               onChange={(event) => updatePart(setParts, index, 'model', event.target.value)}
                               placeholder="Модель запчасти"
                             />
@@ -1100,27 +1621,52 @@ function RequestPage({ currentUser, requestId }) {
                         </td>
                           <td>
                             <InputNumber
-                              min={1}
+                              min={stockLimit === 0 ? 0 : 1}
+                              max={stockLimit ?? undefined}
                               value={part.qty}
-                              onChange={(value) => updatePart(setParts, index, 'qty', value)}
+                              disabled={!canEditRepair}
+                              onChange={(value) => updatePart(setParts, index, 'qty', clampPartQty(value, stockLimit))}
                             />
                           </td>
                           <td>
-                            <Input
-                              value={part.stock}
-                              onChange={(event) => updatePart(setParts, index, 'stock', event.target.value)}
-                            />
+                            <div className="part-loading-cell">
+                              <Input
+                                value={part.stock}
+                                className={isOwnSpare ? 'readonly-part-value' : ''}
+                                disabled={!canEditRepair || isLoadingSpare}
+                                readOnly={isOwnSpare}
+                                onChange={(event) => updatePart(setParts, index, 'stock', event.target.value)}
+                              />
+                              {isLoadingSpare && (
+                                <span className="part-loading-hint">
+                                  <Spin size="small" />
+                                  загрузка
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td>
-                            <InputNumber
-                              min={0}
-                              value={part.price}
-                              onChange={(value) => updatePart(setParts, index, 'price', value)}
-                            />
+                            <div className="part-loading-cell">
+                              <InputNumber
+                                min={0}
+                                value={part.price}
+                                className={isOwnSpare ? 'readonly-part-value' : ''}
+                                disabled={!canEditRepair || isLoadingSpare}
+                                readOnly={isOwnSpare}
+                                onChange={(value) => updatePart(setParts, index, 'price', value)}
+                              />
+                              {isLoadingSpare && (
+                                <span className="part-loading-hint">
+                                  <Spin size="small" />
+                                  загрузка
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td>
                             <Input
                               value={part.comment}
+                              disabled={!canEditRepair}
                               onChange={(event) => updatePart(setParts, index, 'comment', event.target.value)}
                               placeholder="Комментарий"
                             />
@@ -1129,12 +1675,14 @@ function RequestPage({ currentUser, requestId }) {
                             <Button
                               className="icon-button delete-row-button"
                               danger
+                              disabled={!canEditRepair}
                               icon={<Trash2 size={16} />}
                               onClick={() => removePart(index)}
                             />
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                     </table>
                   </div>
@@ -1146,6 +1694,7 @@ function RequestPage({ currentUser, requestId }) {
               <StatusRoadmap
                 request={request}
                 currentStatus={request.status}
+                canChangeStatus={canChangeStatus}
                 isSaving={isSaving}
                 onNextStatus={moveToNextStatus}
                 onPreviousStatus={moveToPreviousStatus}
@@ -1249,24 +1798,12 @@ function StatusBadge({ currentStatus, currentStatusId }) {
   return <span className="status-pill status-trigger">{triggerStatus || 'Статус не указан'}</span>;
 }
 
-function StatusRoadmap({ request, currentStatus, isSaving, onNextStatus, onPreviousStatus }) {
+function StatusRoadmap({ request, currentStatus, canChangeStatus, isSaving, onNextStatus, onPreviousStatus }) {
   const effectiveStatusNumber = getEffectiveStatusNumber(request);
   const { currentIndex } = getRoadmapState(currentStatus, effectiveStatusNumber);
+  const currentStep = requestStatusRoadmap[currentIndex];
   const previousStatus = getPreviousRoadmapStatus(request);
   const nextStatus = getNextRoadmapStatus(request);
-  const timelineItems = requestStatusRoadmap.map((step, index) => ({
-    content: (
-      <span className="roadmap-timeline-content">
-        <span className="roadmap-timeline-title">
-          {step.status}
-          {index === currentIndex && <span className="roadmap-current-label">текущий</span>}
-        </span>
-        <span className="roadmap-timeline-role">{step.role}</span>
-      </span>
-    ),
-    className: index === currentIndex ? 'current' : index < currentIndex ? 'done' : 'pending',
-    color: index <= currentIndex ? 'blue' : 'gray',
-  }));
 
   return (
     <section className="roadmap-card">
@@ -1274,41 +1811,93 @@ function StatusRoadmap({ request, currentStatus, isSaving, onNextStatus, onPrevi
         <span className="status-tooltip-title">Этапы заявки</span>
         <StatusBadge currentStatus={currentStatus} currentStatusId={effectiveStatusNumber} />
       </div>
-      <Timeline className="roadmap-timeline" items={timelineItems} />
+      <ol className="custom-roadmap" aria-label="Этапы заявки">
+        {requestStatusRoadmap.map((step, index) => {
+          const isGroupStart = index === 0 || requestStatusRoadmap[index - 1].role !== step.role;
+          const isGroupEnd =
+            index === requestStatusRoadmap.length - 1 || requestStatusRoadmap[index + 1].role !== step.role;
+          const statusClass = index === currentIndex ? 'current' : index < currentIndex ? 'done' : 'pending';
+          const className = [
+            'custom-roadmap-item',
+            statusClass,
+            getRoadmapRoleClass(step.role),
+            isGroupStart ? 'role-group-start' : '',
+            isGroupEnd ? 'role-group-end' : '',
+          ]
+            .filter(Boolean)
+            .join(' ');
+
+          return (
+            <li className={className} key={step.number} aria-current={index === currentIndex ? 'step' : undefined}>
+              <span className="custom-roadmap-node" aria-hidden="true">
+                <span className="custom-roadmap-dot" />
+              </span>
+              <div className="custom-roadmap-card">
+                {isGroupStart && <span className="roadmap-role-heading">{step.role}</span>}
+                <div className="roadmap-timeline-content">
+                  <span className="roadmap-timeline-title">
+                    {step.status}
+                    {index === currentIndex && <span className="roadmap-current-label">текущий</span>}
+                  </span>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
       <div className="roadmap-actions">
         <Button
           className="app-button"
-          disabled={!previousStatus || isSaving}
+          disabled={!previousStatus || !canChangeStatus || isSaving}
           loading={isSaving}
           onClick={onPreviousStatus}
+          title={!canChangeStatus ? 'Изменять статус может только текущий ответственный' : undefined}
         >
           {previousStatus ? `Предыдущий: ${previousStatus.status}` : 'Начальный статус'}
         </Button>
         <Button
           className="app-button"
-          disabled={!nextStatus || isSaving}
+          disabled={!nextStatus || !canChangeStatus || isSaving}
           loading={isSaving}
           onClick={onNextStatus}
+          title={!canChangeStatus ? 'Изменять статус может только текущий ответственный' : undefined}
           type="primary"
         >
-          {nextStatus ? `Следующий: ${nextStatus.status}` : 'Финальный статус'}
+          {nextStatus ? currentStep?.completionLabel || nextStatus.status : 'Финальный статус'}
         </Button>
       </div>
     </section>
   );
 }
 
-function PartModelSearch({ models, value, onChange }) {
+function getRoadmapRoleClass(role) {
+  if (role === 'Склад') {
+    return 'role-warehouse';
+  }
+
+  if (role === 'Сервис-центр') {
+    return 'role-service';
+  }
+
+  if (role === 'Менеджер') {
+    return 'role-manager';
+  }
+
+  return 'role-administrator';
+}
+
+function PartModelSearch({ models, value, disabled = false, onChange }) {
   const query = String(value || '').toLowerCase().trim();
   const options = models
     .filter((model) => !query || model.label.toLowerCase().includes(query) || String(model.id).includes(query))
     .slice(0, 30)
     .map((model) => ({
       value: model.label,
+      disabled: Number(model.stock) === 0,
       label: (
-        <span className="model-option">
+        <span className={`model-option ${Number(model.stock) === 0 ? 'model-option-disabled' : ''}`}>
           <span>{model.label}</span>
-          <small>{model.id}</small>
+          <small>на складе: {formatStockValue(model.stock)}</small>
         </span>
       ),
       modelId: model.id,
@@ -1318,6 +1907,7 @@ function PartModelSearch({ models, value, onChange }) {
     <AutoComplete
       className="model-search"
       value={value}
+      disabled={disabled}
       options={options}
       popupMatchSelectWidth={360}
       onChange={(nextValue) => onChange(nextValue, '')}
@@ -1327,6 +1917,10 @@ function PartModelSearch({ models, value, onChange }) {
       <Input placeholder="Найти модель" />
     </AutoComplete>
   );
+}
+
+function formatStockValue(value) {
+  return value === null || value === undefined || value === '' ? '—' : value;
 }
 
 function DetailSkeleton() {
@@ -1388,7 +1982,17 @@ function SkeletonFormBlock({ fields, wide = false }) {
   );
 }
 
-function FormBlock({ title, fields, onChange, wide = false }) {
+function FormBlock({
+  title,
+  fields,
+  onChange,
+  modelOptions = [],
+  onModelChange,
+  selectOptions = emptyRepairOptions,
+  onSelectSearch = {},
+  disabled = false,
+  wide = false,
+}) {
   return (
     <section className={`detail-block ${wide ? 'wide-block' : ''}`}>
       <h2>{title}</h2>
@@ -1396,18 +2000,42 @@ function FormBlock({ title, fields, onChange, wide = false }) {
         {Object.entries(fields).map(([name, value]) => (
           <label className="field" key={name}>
             <span>{fieldLabels[name]}</span>
-            {selectFieldOptions[name] ? (
-              <Select
+            {name === 'model' && onModelChange ? (
+              <AutoComplete
                 value={value}
+                disabled={disabled}
+                variant="borderless"
+                suffixIcon={<DownOutlined />}
+                options={modelOptions.map((model) => ({ value: model.label, label: model.label, modelId: model.id }))}
+                onChange={(nextValue) => onModelChange(nextValue, '')}
+                onSelect={(nextValue, option) => onModelChange(nextValue, option.modelId)}
+                showSearch
+              />
+            ) : remoteSelectFieldNames[name] ? (
+              <Select
+                value={getRemoteSelectValue(name, value, selectOptions)}
+                disabled={disabled}
                 variant="borderless"
                 showSearch
                 optionFilterProp="label"
-                options={getSelectOptions(name, value).map((option) => ({ value: option, label: option || ' ' }))}
+                filterOption={onSelectSearch[name] ? false : undefined}
+                options={getRemoteSelectOptions(name, value, selectOptions)}
+                onSearch={onSelectSearch[name]}
+                onChange={(nextValue) => onChange(name, nextValue)}
+              />
+            ) : localSelectFieldOptions[name] ? (
+              <Select
+                value={value === '' ? undefined : Number(value)}
+                disabled={disabled}
+                variant="borderless"
+                options={localSelectFieldOptions[name]}
+                placeholder="Выберите значение"
                 onChange={(nextValue) => onChange(name, nextValue)}
               />
             ) : dateFieldNames.has(name) ? (
               <DatePicker
                 value={value ? dayjs(value) : null}
+                disabled={disabled}
                 variant="borderless"
                 format="DD.MM.YYYY"
                 placeholder=""
@@ -1417,11 +2045,12 @@ function FormBlock({ title, fields, onChange, wide = false }) {
               <Input.TextArea
                 className="long-text-field"
                 value={value}
+                disabled={disabled}
                 rows={4}
                 onChange={(event) => onChange(name, event.target.value)}
               />
             ) : (
-              <Input value={value} onChange={(event) => onChange(name, event.target.value)} />
+              <Input value={value} disabled={disabled} onChange={(event) => onChange(name, event.target.value)} />
             )}
           </label>
         ))}
@@ -1430,19 +2059,56 @@ function FormBlock({ title, fields, onChange, wide = false }) {
   );
 }
 
-function getSelectOptions(name, value) {
-  const options = selectFieldOptions[name] || [];
-  const stringValue = String(value ?? '');
+function getRemoteSelectOptions(name, value, selectOptions) {
+  const collectionName = remoteSelectFieldNames[name];
+  const options = (selectOptions[collectionName] || [])
+    .filter((option) => !isEmptyRemoteSelectValue(option.id))
+    .map((option) => ({
+      ...option,
+      value: option.id,
+      label: option.label || option.name || option.nameorg || option.note || formatPerson(option) || String(option.id),
+    }));
+  const hasCurrentValue = options.some((option) => String(option.value) === String(value));
 
-  if (!stringValue && options.length === 0) {
-    return [''];
+  if (!isEmptyRemoteSelectValue(value) && !hasCurrentValue && name !== 'organizationId') {
+    return [{ value, label: String(value) }, ...options];
   }
 
-  if (!stringValue || options.includes(stringValue)) {
-    return options;
+  return options;
+}
+
+function getRemoteSelectValue(name, value, selectOptions) {
+  if (isEmptyRemoteSelectValue(value)) {
+    return undefined;
   }
 
-  return [stringValue, ...options];
+  if (name === 'organizationId') {
+    const organizations = selectOptions[remoteSelectFieldNames[name]] || [];
+    const hasOrganization = organizations.some(
+      (organization) =>
+        !isEmptyRemoteSelectValue(organization.id) && String(organization.id) === String(value),
+    );
+
+    return hasOrganization ? value : undefined;
+  }
+
+  return value;
+}
+
+function isEmptyRemoteSelectValue(value) {
+  return value === '' || value === null || value === undefined || String(value).trim() === '0';
+}
+
+function mergeOptionsById(currentOptions = [], nextOptions = []) {
+  const optionsById = new Map();
+
+  [...currentOptions, ...nextOptions].forEach((option) => {
+    if (!isEmptyRemoteSelectValue(option.id)) {
+      optionsById.set(String(option.id), option);
+    }
+  });
+
+  return Array.from(optionsById.values());
 }
 
 function buildRepairSnapshot(request, details, parts) {
@@ -1454,6 +2120,18 @@ function buildRepairSnapshot(request, details, parts) {
   });
 }
 
+function getSavedRepair(result) {
+  if (result?.data && !Array.isArray(result.data) && typeof result.data === 'object') {
+    return result.data;
+  }
+
+  if (result?.data !== undefined && result?.data !== null && typeof result.data !== 'object') {
+    return { ...result, id: result.id || result.data };
+  }
+
+  return result && typeof result === 'object' ? result : null;
+}
+
 function getNumericPayloadValue(value, fallbackValue) {
   const trimmedValue = String(value ?? '').trim();
   const numericValue = Number(trimmedValue);
@@ -1461,8 +2139,20 @@ function getNumericPayloadValue(value, fallbackValue) {
   return trimmedValue !== '' && Number.isFinite(numericValue) ? numericValue : fallbackValue;
 }
 
-function buildSaveRepairPayload(request, details, parts) {
-  return {
+function findRepairOption(options, value) {
+  return (options || []).find((option) => String(option.id) === String(value));
+}
+
+function getLocalOptionLabel(name, value) {
+  return localSelectFieldOptions[name]?.find((option) => String(option.value) === String(value))?.label || '';
+}
+
+function buildSaveRepairPayload(request, details, parts, repairOptions = emptyRepairOptions) {
+  const engineer = findRepairOption(repairOptions.engineers, details.repair.engineer);
+  const defect = findRepairOption(repairOptions.defects, details.repair.faultDescription);
+  const defectCause = findRepairOption(repairOptions.defect_causes, details.repair.faultReasons);
+  const repairType = findRepairOption(repairOptions.repair_types, details.repair.expectedRepair);
+  const payload = {
     ...request,
     status_id: request.status_id,
     model_name: details.equipment.model,
@@ -1480,39 +2170,128 @@ function buildSaveRepairPayload(request, details, parts) {
     client_email: details.client.email,
     client_tel: details.client.phone,
     client_post: details.client.postalAddress,
+    manager_id: getNumericPayloadValue(details.client.requestManager, request.manager_id),
     approved_work: getNumericPayloadValue(details.client.approvedWorks, request.approved_work),
-    approved_work_name: details.client.approvedWorks,
-    engin_defect_note: details.repair.faultDescription,
-    probable_causes_note: details.repair.faultReasons,
-    engin_list_repairs_note: details.repair.expectedRepair,
-    act_text_job: details.repair.repair,
-    engin_foul_comment: details.repair.usageViolation,
+    approved_work_name: getLocalOptionLabel('approvedWorks', details.client.approvedWorks),
+    client_commet: details.client.clientComment,
+    client_org_id: getNumericPayloadValue(details.client.organizationId, request.client_org_id),
+    client_org_requisit_id: getNumericPayloadValue(details.client.payerId, request.client_org_requisit_id),
+    conveyance_id: getNumericPayloadValue(details.client.conveyanceId, request.conveyance_id),
+    insurance: getNumericPayloadValue(details.client.insurance, request.insurance ?? 0),
+    sturdy_packaging: getNumericPayloadValue(details.client.sturdyPackaging, request.sturdy_packaging ?? 0),
+    comment_price: details.client.adminComment,
+    engin_id: engineer?.id ?? getNumericPayloadValue(details.repair.engineer, request.engin_id),
+    defect_id: defect?.id ?? getNumericPayloadValue(details.repair.faultDescription, request.defect_id),
+    defect_cause_id: defectCause?.id ?? getNumericPayloadValue(details.repair.faultReasons, request.defect_cause_id),
+    repair_type_id: repairType?.id ?? getNumericPayloadValue(details.repair.expectedRepair, request.repair_type_id),
+    engin_defect_note: defect?.note || defect?.label || details.repair.faultDescription,
+    probable_causes_note: defectCause?.note || defectCause?.label || details.repair.faultReasons,
+    engin_list_repairs_note: repairType?.note || repairType?.label || details.repair.expectedRepair,
+    category_repairs: getNumericPayloadValue(details.repair.repair, request.category_repairs),
+    engin_foul: getNumericPayloadValue(details.repair.usageViolation, request.engin_foul),
+    engin_foul_comment: details.repair.comment,
     engin_time_job_diagnostics: details.repair.diagnosisMinutes,
-    engin_comment: details.repair.comment,
     diagnostics_price: details.repair.diagnosisTotal,
     engin_time_job: details.repair.repairMinutes,
     engin_price: details.repair.repairTotal,
+    engin_comment: details.repair.spareWaitingComment,
     wait_spares_comment: details.repair.spareWaitingComment,
     act_text_diagnostic: details.repair.diagnosisAct,
-    spares: parts.map((part) => ({
-      ...part,
-      count: part.qty,
-      model_id: part.modelId,
-      name: part.model,
-    })),
+    act_text_job: details.repair.workAct,
+    spares: parts
+      .filter((part) => {
+        if (part.id) {
+          return true;
+        }
+
+        return isOwnPart(part) ? String(part.modelId || '').trim() !== '' : String(part.model || '').trim() !== '';
+      })
+      .map((part) => ({
+        ...part,
+        deleted: Number(part.deleted || 0),
+        count: part.qty,
+        model_id: part.modelId,
+        name: part.model,
+      })),
   };
+
+  if (!request.id) {
+    delete payload.id;
+  }
+
+  return payload;
 }
 
 function updatePart(setParts, index, field, value) {
   setParts((current) => current.map((part, partIndex) => (partIndex === index ? { ...part, [field]: value } : part)));
 }
 
+function updatePartRow(setParts, index, values) {
+  setParts((current) => current.map((part, partIndex) => (partIndex === index ? { ...part, ...values } : part)));
+}
+
+function getPartStockLimit(part) {
+  const stock = Number(part.stock);
+
+  return Number.isFinite(stock) && stock >= 0 ? stock : null;
+}
+
+function clampPartQty(value, stockLimit) {
+  const minQty = stockLimit === 0 ? 0 : 1;
+  const qty = Math.max(minQty, Number(value) || minQty);
+
+  return stockLimit === null ? qty : Math.min(qty, stockLimit);
+}
+
+function clampPartQtyToStock(setParts, index) {
+  setParts((current) =>
+    current.map((part, partIndex) => {
+      if (partIndex !== index) {
+        return part;
+      }
+
+      return {
+        ...part,
+        qty: clampPartQty(part.qty, getPartStockLimit(part)),
+      };
+    }),
+  );
+}
+
 function formatDate(value) {
-  return new Intl.DateTimeFormat('ru-RU').format(new Date(value));
+  if (value === null || value === undefined || value === '') {
+    return '-';
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '-' : new Intl.DateTimeFormat('ru-RU').format(value);
+  }
+
+  const source = String(value).trim();
+  const russianDate = source.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+
+  if (russianDate) {
+    const [, day, month, year] = russianDate;
+    return `${day.padStart(2, '0')}.${month.padStart(2, '0')}.${year}`;
+  }
+
+  const serverDate = source.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (serverDate) {
+    const [, year, month, day] = serverDate;
+    return `${day}.${month}.${year}`;
+  }
+
+  const numericValue = Number(source);
+  const parsedDate = /^\d+$/.test(source)
+    ? new Date(numericValue < 10_000_000_000 ? numericValue * 1000 : numericValue)
+    : new Date(source);
+
+  return Number.isNaN(parsedDate.getTime()) ? '-' : new Intl.DateTimeFormat('ru-RU').format(parsedDate);
 }
 
 function formatCurrency(value) {
-  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value) || 0);
 }
 
 function escapeHtml(value) {
