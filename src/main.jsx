@@ -14,9 +14,11 @@ import {
   Home,
   Plus,
   Printer,
+  RotateCcw,
   Save,
   Search,
   Send,
+  ShoppingCart,
   Trash2,
 } from 'lucide-react';
 import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOrganizationRequisites, fetchRepair, fetchRepairManagers, fetchRepairOptions, fetchRepairOrganizations, fetchRepairs, fetchSalesModels, fetchSpareModel, saveRepair } from './api';
@@ -205,7 +207,7 @@ const roadmapRoleAcl = {
 
 function mapBackendRepair(repair) {
   const modelName = Array.isArray(repair.model) ? repair.model[0]?.name_seo : repair.model?.name_seo;
-  const statusName = Array.isArray(repair.status) ? repair.status[0]?.name : repair.status?.name;
+  const statusName = Array.isArray(repair.status) ? repair.status[0]?.new_name : repair.status?.new_name;
   const engineerName = Array.isArray(repair.engin) ? formatPerson(repair.engin[0]) : formatPerson(repair.engin);
   const managerName =
     repair.manager_name ||
@@ -931,6 +933,7 @@ function RequestPage({ currentUser, requestId }) {
   const [request, setRequest] = useState(emptyRequest);
   const [details, setDetails] = useState(emptyRequestDetails);
   const [parts, setParts] = useState([]);
+  const [initialParts, setInitialParts] = useState([]);
   const [initialSnapshot, setInitialSnapshot] = useState('');
   const [salesModels, setSalesModels] = useState([]);
   const [repairOptions, setRepairOptions] = useState(emptyRepairOptions);
@@ -938,6 +941,7 @@ function RequestPage({ currentUser, requestId }) {
   const [loadError, setLoadError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [processingSpareAction, setProcessingSpareAction] = useState('');
   const [downloadingDocument, setDownloadingDocument] = useState('');
   const [isCreatingInvoiceRequest, setIsCreatingInvoiceRequest] = useState(false);
   const organizationSearchTimerRef = useRef(null);
@@ -945,6 +949,8 @@ function RequestPage({ currentUser, requestId }) {
   const [notificationApi, notificationContext] = notification.useNotification();
   const currentSnapshot = buildRepairSnapshot(request, details, parts);
   const hasChanges = Boolean(initialSnapshot) && currentSnapshot !== initialSnapshot;
+  const spareChanges = getSpareChangeSummary(initialParts, parts);
+  const hasPendingSpareChanges = spareChanges.hasOrder || spareChanges.hasReturn;
   const displayEquipment = details.equipment.model || request.equipment;
   const displayClient = details.client.companyName || request.client;
   const effectiveStatusNumber = getEffectiveStatusNumber(request);
@@ -974,6 +980,7 @@ function RequestPage({ currentUser, requestId }) {
       setRequest(nextRequest);
       setDetails(nextDetails);
       setParts([]);
+      setInitialParts([]);
       setLoadingSpareRows({});
       setInitialSnapshot(buildRepairSnapshot(nextRequest, nextDetails, []));
       setLoadError('');
@@ -998,6 +1005,7 @@ function RequestPage({ currentUser, requestId }) {
         setRequest(mappedRequest);
         setDetails(mappedDetails);
         setParts(mappedDetails.parts);
+        setInitialParts(mappedDetails.parts);
         setLoadingSpareRows({});
         setInitialSnapshot(buildRepairSnapshot(mappedRequest, mappedDetails, mappedDetails.parts));
         setLoadError('');
@@ -1007,6 +1015,7 @@ function RequestPage({ currentUser, requestId }) {
           setRequest(emptyRequest);
           setDetails(emptyRequestDetails);
           setParts([]);
+          setInitialParts([]);
           setLoadingSpareRows({});
           setInitialSnapshot('');
           setLoadError('Ошибка загрузки заявки');
@@ -1238,6 +1247,7 @@ function RequestPage({ currentUser, requestId }) {
     setRequest(nextRequest);
     setDetails(nextDetails);
     setParts(nextParts);
+    setInitialParts(nextParts);
     setInitialSnapshot(buildRepairSnapshot(nextRequest, nextDetails, nextParts));
 
     return { nextRequest, nextDetails, nextParts };
@@ -1312,7 +1322,10 @@ function RequestPage({ currentUser, requestId }) {
   }
 
   async function moveToNextStatus() {
-    if (!canChangeStatus) {
+    if (!canChangeStatus || hasPendingSpareChanges) {
+      if (hasPendingSpareChanges) {
+        showPendingSpareChangesNotification();
+      }
       return;
     }
 
@@ -1373,7 +1386,10 @@ function RequestPage({ currentUser, requestId }) {
   }
 
   async function moveToPreviousStatus() {
-    if (!canChangeStatus) {
+    if (!canChangeStatus || hasPendingSpareChanges) {
+      if (hasPendingSpareChanges) {
+        showPendingSpareChangesNotification();
+      }
       return;
     }
 
@@ -1402,6 +1418,11 @@ function RequestPage({ currentUser, requestId }) {
       return;
     }
 
+    if (hasPendingSpareChanges) {
+      showPendingSpareChangesNotification();
+      return;
+    }
+
     setIsSaving(true);
 
     try {
@@ -1425,6 +1446,49 @@ function RequestPage({ currentUser, requestId }) {
       });
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  function showPendingSpareChangesNotification() {
+    notificationApi.warning({
+      title: 'Не оформлены изменения по запчастям',
+      description: 'Используйте кнопку «Заказ запчастей» или «Возврат запчастей» под таблицей.',
+    });
+  }
+
+  async function saveSpareChanges(action) {
+    const isAvailable = action === 'order' ? spareChanges.hasOrder : spareChanges.hasReturn;
+
+    if (!isAvailable || isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    setProcessingSpareAction(action);
+
+    try {
+      const result = await saveRepair(buildSaveRepairPayload(request, details, parts, repairOptions));
+      const { nextRequest } = applySavedRepair(result);
+
+      if (!request.id && nextRequest.id) {
+        const requestUrl = `/requests/${encodeURIComponent(nextRequest.id)}`;
+
+        window.history.replaceState(null, '', requestUrl);
+        document.title = `Сервис-центр | ${nextRequest.id}`;
+      }
+
+      notificationApi.success({
+        title: action === 'order' ? 'Заказ запчастей сохранён' : 'Возврат запчастей сохранён',
+        description: result?.msg || result?.message || 'Изменения по запчастям успешно отправлены на сервер.',
+      });
+    } catch (error) {
+      notificationApi.error({
+        title: action === 'order' ? 'Не удалось заказать запчасти' : 'Не удалось оформить возврат',
+        description: error.message || 'Сервер вернул ошибку сохранения.',
+      });
+    } finally {
+      setIsSaving(false);
+      setProcessingSpareAction('');
     }
   }
 
@@ -1518,9 +1582,14 @@ function RequestPage({ currentUser, requestId }) {
                 className="app-button"
                 type="primary"
                 icon={<Save size={16} />}
-                disabled={!hasChanges || isSaving}
+                disabled={!hasChanges || isSaving || hasPendingSpareChanges}
                 loading={isSaving}
                 onClick={saveRequest}
+                title={
+                  hasPendingSpareChanges
+                    ? 'Сначала оформите заказ или возврат запчастей кнопкой под таблицей'
+                    : undefined
+                }
               >
                 Сохранить
               </Button>
@@ -1687,6 +1756,28 @@ function RequestPage({ currentUser, requestId }) {
                     </table>
                   </div>
                 )}
+                <div className="spare-operation-actions">
+                  <Button
+                    className="app-button"
+                    type="primary"
+                    icon={<ShoppingCart size={16} />}
+                    disabled={!canEditRepair || !spareChanges.hasOrder || isSaving}
+                    loading={processingSpareAction === 'order'}
+                    onClick={() => saveSpareChanges('order')}
+                  >
+                    Заказ запчастей
+                  </Button>
+                  <Button
+                    className="app-button"
+                    danger
+                    icon={<RotateCcw size={16} />}
+                    disabled={!canEditRepair || !spareChanges.hasReturn || isSaving}
+                    loading={processingSpareAction === 'return'}
+                    onClick={() => saveSpareChanges('return')}
+                  >
+                    Возврат запчастей
+                  </Button>
+                </div>
               </section>
             </div>
 
@@ -1695,6 +1786,7 @@ function RequestPage({ currentUser, requestId }) {
                 request={request}
                 currentStatus={request.status}
                 canChangeStatus={canChangeStatus}
+                hasPendingSpareChanges={hasPendingSpareChanges}
                 isSaving={isSaving}
                 onNextStatus={moveToNextStatus}
                 onPreviousStatus={moveToPreviousStatus}
@@ -1798,7 +1890,15 @@ function StatusBadge({ currentStatus, currentStatusId }) {
   return <span className="status-pill status-trigger">{triggerStatus || 'Статус не указан'}</span>;
 }
 
-function StatusRoadmap({ request, currentStatus, canChangeStatus, isSaving, onNextStatus, onPreviousStatus }) {
+function StatusRoadmap({
+  request,
+  currentStatus,
+  canChangeStatus,
+  hasPendingSpareChanges,
+  isSaving,
+  onNextStatus,
+  onPreviousStatus,
+}) {
   const effectiveStatusNumber = getEffectiveStatusNumber(request);
   const { currentIndex } = getRoadmapState(currentStatus, effectiveStatusNumber);
   const currentStep = requestStatusRoadmap[currentIndex];
@@ -1848,19 +1948,19 @@ function StatusRoadmap({ request, currentStatus, canChangeStatus, isSaving, onNe
       <div className="roadmap-actions">
         <Button
           className="app-button"
-          disabled={!previousStatus || !canChangeStatus || isSaving}
+          disabled={!previousStatus || !canChangeStatus || hasPendingSpareChanges || isSaving}
           loading={isSaving}
           onClick={onPreviousStatus}
-          title={!canChangeStatus ? 'Изменять статус может только текущий ответственный' : undefined}
+          title={getStatusChangeDisabledTitle(canChangeStatus, hasPendingSpareChanges)}
         >
           {previousStatus ? `Предыдущий: ${previousStatus.status}` : 'Начальный статус'}
         </Button>
         <Button
           className="app-button"
-          disabled={!nextStatus || !canChangeStatus || isSaving}
+          disabled={!nextStatus || !canChangeStatus || hasPendingSpareChanges || isSaving}
           loading={isSaving}
           onClick={onNextStatus}
-          title={!canChangeStatus ? 'Изменять статус может только текущий ответственный' : undefined}
+          title={getStatusChangeDisabledTitle(canChangeStatus, hasPendingSpareChanges)}
           type="primary"
         >
           {nextStatus ? currentStep?.completionLabel || nextStatus.status : 'Финальный статус'}
@@ -1868,6 +1968,14 @@ function StatusRoadmap({ request, currentStatus, canChangeStatus, isSaving, onNe
       </div>
     </section>
   );
+}
+
+function getStatusChangeDisabledTitle(canChangeStatus, hasPendingSpareChanges) {
+  if (hasPendingSpareChanges) {
+    return 'Сначала оформите заказ или возврат запчастей';
+  }
+
+  return !canChangeStatus ? 'Изменять статус может только текущий ответственный' : undefined;
 }
 
 function getRoadmapRoleClass(role) {
@@ -2118,6 +2226,55 @@ function buildRepairSnapshot(request, details, parts) {
     details,
     parts,
   });
+}
+
+function getSpareChangeSummary(initialParts, currentParts) {
+  const initialQuantities = aggregateSpareQuantities(initialParts);
+  const currentQuantities = aggregateSpareQuantities(currentParts);
+  const spareKeys = new Set([...initialQuantities.keys(), ...currentQuantities.keys()]);
+  let hasOrder = false;
+  let hasReturn = false;
+
+  spareKeys.forEach((key) => {
+    const initialQuantity = initialQuantities.get(key) || 0;
+    const currentQuantity = currentQuantities.get(key) || 0;
+
+    if (currentQuantity > initialQuantity) {
+      hasOrder = true;
+    }
+
+    if (currentQuantity < initialQuantity) {
+      hasReturn = true;
+    }
+  });
+
+  return { hasOrder, hasReturn };
+}
+
+function aggregateSpareQuantities(parts) {
+  const quantities = new Map();
+
+  (parts || []).filter(isVisiblePart).forEach((part) => {
+    const identity = getSpareIdentity(part);
+    const quantity = Math.max(0, Number(part.qty) || 0);
+
+    if (!identity || quantity === 0) {
+      return;
+    }
+
+    quantities.set(identity, (quantities.get(identity) || 0) + quantity);
+  });
+
+  return quantities;
+}
+
+function getSpareIdentity(part) {
+  const type = isOwnPart(part) ? 'own' : 'purchased';
+  const model = String(isOwnPart(part) ? part.modelId || part.model : part.model || part.modelId)
+    .trim()
+    .toLocaleLowerCase('ru-RU');
+
+  return model ? `${type}:${model}` : '';
 }
 
 function getSavedRepair(result) {

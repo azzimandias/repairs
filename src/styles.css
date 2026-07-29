@@ -1378,6 +1378,17 @@ td {
   height: 16px;
 }
 
+.spare-operation-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.spare-operation-actions .button {
+  min-height: 32px;
+}
+
 .parts-table {
   min-width: 900px;
   table-layout: fixed;
@@ -1541,7 +1552,8 @@ td {
   }
 
   .topbar-actions,
-  .parts-actions {
+  .parts-actions,
+  .spare-operation-actions {
     flex-wrap: wrap;
   }
 
