@@ -144,6 +144,25 @@ export async function saveRepair(repair) {
   return result;
 }
 
+export async function orderRepairSpareParts(repairId, spareIds) {
+  const result = await apiFetch(
+    `${API_ORIGIN}/api/repairs/${encodeURIComponent(repairId)}/spare-parts/order`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ spare_ids: spareIds }),
+    },
+  );
+
+  if (result?.error) {
+    throw new Error(getApiErrorMessage(result, 'Не удалось заказать запчасти'));
+  }
+
+  return result;
+}
+
 export async function fetchCurrentUser() {
   const result = await apiFetch(USER_ENDPOINT);
   const payload = result?.data || result;

@@ -576,6 +576,7 @@ td {
 .status-pill {
   background: #e5f1ff;
   color: #344154;
+  font-weight: 400;
 }
 
 .status-trigger {
@@ -789,7 +790,7 @@ td {
   gap: 7px;
   color: #536175;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1.28;
 }
 
@@ -814,7 +815,7 @@ td {
 
 .custom-roadmap-item.current .roadmap-timeline-title {
   color: #102a56;
-  font-weight: 900;
+  font-weight: 400;
 }
 
 .custom-roadmap-item.current .roadmap-timeline-role {
@@ -1728,7 +1729,7 @@ td { color: #243244; font-size: 12px; }
 .wide-block .field:nth-child(odd) { border-right: 1px solid #d2d8df; }
 .field > span {
   padding: 4px 7px; border-right-color: #c7d0da; background: #eef1f4;
-  color: #344456; font-size: 12px; line-height: 1.25;
+  color: #344456; font-size: 12px; font-weight: 400; line-height: 1.25;
 }
 .field > .ant-select .ant-select-selector, .field > .ant-picker,
 .field > .ant-input-number, .field > .ant-input, .field > .ant-input-affix-wrapper {

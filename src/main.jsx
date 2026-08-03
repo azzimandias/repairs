@@ -21,7 +21,7 @@ import {
   ShoppingCart,
   Trash2,
 } from 'lucide-react';
-import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOrganizationRequisites, fetchRepair, fetchRepairManagers, fetchRepairOptions, fetchRepairOrganizations, fetchRepairs, fetchSalesModels, fetchSpareModel, saveRepair } from './api';
+import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOrganizationRequisites, fetchRepair, fetchRepairManagers, fetchRepairOptions, fetchRepairOrganizations, fetchRepairs, fetchSalesModels, fetchSpareModel, orderRepairSpareParts, saveRepair } from './api';
 import 'antd/dist/reset.css';
 import './styles.css';
 
@@ -140,6 +140,11 @@ const remoteSelectFieldNames = {
 };
 
 const localSelectFieldOptions = {
+  pickupPoint: [
+    { value: 0, label: 'Неизвестно' },
+    { value: 1, label: 'СПБ' },
+    { value: 2, label: 'Москва' },
+  ],
   approvedWorks: [
     { value: 0, label: 'Неизвестно' },
     { value: 1, label: 'Только диагностика' },
@@ -242,7 +247,7 @@ function mapBackendRepairDetails(repair) {
       declaredFault: repair.defect_clients || repair.defect_note || repair.client_defect_note || '',
       kit: repair.complete_set || repair.complect || repair.equipment_set || '',
       externalState: repair.condition || repair.external_state || repair.appearance || '',
-      pickupPoint: repair.point_of_delivery || repair.conveyance_name || repair.conveyance?.name || '',
+      pickupPoint: repair.point_of_delivery ?? 0,
       sellerName: repair.sale_org_name || '',
       saleOrRepairDate: formatBackendDateInput(repair.sale_date || repair.date_sale || repair.date),
       invoiceNumber: repair.sale_invoice || repair.invoice_number || repair.number_invoice || '',
@@ -1465,10 +1470,15 @@ function RequestPage({ currentUser, requestId }) {
 
     setIsSaving(true);
     setProcessingSpareAction(action);
+    const previousInitialParts = initialParts;
+    const previousInitialSnapshot = initialSnapshot;
+    let repairWasSaved = false;
 
     try {
       const result = await saveRepair(buildSaveRepairPayload(request, details, parts, repairOptions));
-      const { nextRequest } = applySavedRepair(result);
+      let { nextRequest, nextParts } = applySavedRepair(result);
+
+      repairWasSaved = true;
 
       if (!request.id && nextRequest.id) {
         const requestUrl = `/requests/${encodeURIComponent(nextRequest.id)}`;
@@ -1477,11 +1487,49 @@ function RequestPage({ currentUser, requestId }) {
         document.title = `Сервис-центр | ${nextRequest.id}`;
       }
 
+      let operationResult = result;
+
+      if (action === 'order') {
+        const repairId = nextRequest.id || request.id;
+
+        if (!repairId) {
+          throw new Error('Сервер не вернул ID сохранённой заявки.');
+        }
+
+        const savedRepair = await fetchRepair(repairId);
+
+        if (savedRepair) {
+          const appliedRepair = applySavedRepair(savedRepair, nextRequest, details, nextParts);
+
+          nextRequest = appliedRepair.nextRequest;
+          nextParts = appliedRepair.nextParts;
+        }
+
+        const spareIds = getSpareIdsForOrder(previousInitialParts, nextParts);
+
+        if (spareIds.length === 0) {
+          throw new Error('Не найдены ID запчастей для заказа.');
+        }
+
+        operationResult = await orderRepairSpareParts(repairId, spareIds);
+
+        const orderedRepair = await fetchRepair(repairId).catch(() => null);
+
+        if (orderedRepair) {
+          applySavedRepair(orderedRepair, nextRequest, details, nextParts);
+        }
+      }
+
       notificationApi.success({
-        title: action === 'order' ? 'Заказ запчастей сохранён' : 'Возврат запчастей сохранён',
-        description: result?.msg || result?.message || 'Изменения по запчастям успешно отправлены на сервер.',
+        title: action === 'order' ? 'Заказ запчастей отправлен' : 'Возврат запчастей сохранён',
+        description: operationResult?.msg || operationResult?.message || 'Изменения по запчастям успешно отправлены на сервер.',
       });
     } catch (error) {
+      if (action === 'order' && repairWasSaved) {
+        setInitialParts(previousInitialParts);
+        setInitialSnapshot(previousInitialSnapshot);
+      }
+
       notificationApi.error({
         title: action === 'order' ? 'Не удалось заказать запчасти' : 'Не удалось оформить возврат',
         description: error.message || 'Сервер вернул ошибку сохранения.',
@@ -2277,6 +2325,28 @@ function getSpareIdentity(part) {
   return model ? `${type}:${model}` : '';
 }
 
+function getSpareIdsForOrder(initialParts, currentParts) {
+  const initialQuantities = aggregateSpareQuantities(initialParts);
+  const currentQuantities = aggregateSpareQuantities(currentParts);
+  const increasedSpareKeys = new Set(
+    [...currentQuantities.keys()].filter(
+      (key) => (currentQuantities.get(key) || 0) > (initialQuantities.get(key) || 0),
+    ),
+  );
+
+  return [...new Set(
+    (currentParts || [])
+      .filter(
+        (part) =>
+          isVisiblePart(part) &&
+          increasedSpareKeys.has(getSpareIdentity(part)) &&
+          Number.isInteger(Number(part.id)) &&
+          Number(part.id) > 0,
+      )
+      .map((part) => Number(part.id)),
+  )];
+}
+
 function getSavedRepair(result) {
   if (result?.data && !Array.isArray(result.data) && typeof result.data === 'object') {
     return result.data;
@@ -2317,7 +2387,7 @@ function buildSaveRepairPayload(request, details, parts, repairOptions = emptyRe
     defect_clients: details.equipment.declaredFault,
     complete_set: details.equipment.kit,
     condition: details.equipment.externalState,
-    point_of_delivery: details.equipment.pickupPoint,
+    point_of_delivery: getNumericPayloadValue(details.equipment.pickupPoint, 0),
     sale_org_name: details.equipment.sellerName,
     sale_date: details.equipment.saleOrRepairDate,
     sale_invoice: details.equipment.invoiceNumber,
