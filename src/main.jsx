@@ -24,6 +24,7 @@ import {
 import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOrganizationRequisites, fetchRepair, fetchRepairManagers, fetchRepairOptions, fetchRepairOrganizations, fetchRepairs, fetchSalesModels, fetchSpareModel, orderRepairSpareParts, saveRepair } from './api';
 import 'antd/dist/reset.css';
 import './styles.css';
+import { buildListUrl, readListUrlState } from './list-url-state';
 
 const homeUrl = import.meta.env.VITE_HOME_URL || '/';
 const emptyRequest = { id: '', status: '', status_id: null, equipment: '', client: '' };
@@ -567,13 +568,8 @@ function getUserInitials(name) {
 }
 
 function RequestsListPage({ currentUser }) {
-  const [filters, setFilters] = useState({
-    audience: 'all',
-    repairType: 'all',
-    manager: 'all',
-    unfinished: false,
-    search: '',
-  });
+  const [initialUrlState] = useState(() => readListUrlState(window.location.search));
+  const [filters, setFilters] = useState(initialUrlState.filters);
   const [requests, setRequests] = useState([]);
   const [managerOptions, setManagerOptions] = useState([]);
   const [paginationMeta, setPaginationMeta] = useState({
@@ -583,9 +579,30 @@ function RequestsListPage({ currentUser }) {
     to: 0,
   });
   const [loadError, setLoadError] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(30);
+  const [page, setPage] = useState(initialUrlState.page);
+  const [pageSize, setPageSize] = useState(initialUrlState.pageSize);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const restoreUrlState = () => {
+      const state = readListUrlState(window.location.search);
+      setFilters(state.filters);
+      setPage(state.page);
+      setPageSize(state.pageSize);
+    };
+
+    window.addEventListener('popstate', restoreUrlState);
+    return () => window.removeEventListener('popstate', restoreUrlState);
+  }, []);
+
+  useEffect(() => {
+    const url = buildListUrl(window.location.href, { filters, page, pageSize });
+    const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+
+    if (url !== currentUrl) {
+      window.history.replaceState(window.history.state, '', url);
+    }
+  }, [filters, page, pageSize]);
 
   const totalPages = Math.max(1, paginationMeta.lastPage);
   const visibleRequests = requests;
