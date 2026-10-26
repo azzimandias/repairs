@@ -324,6 +324,24 @@ export async function fetchRepairOptions() {
   };
 }
 
+export async function fetchInternalUsdRate() {
+  const result = await apiFetch(`${API_ORIGIN}/api/currency/getcurrency`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data: {},
+      _token: getXsrfHeaders()['X-XSRF-TOKEN'] || document.querySelector('meta[name="csrf-token"]')?.content || '',
+    }),
+  });
+  const rate = Number(result?.company?.find((currency) => currency.charcode === 'USD')?.value);
+
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error('Внутренний курс доллара недоступен');
+  }
+
+  return rate;
+}
+
 export async function downloadRepairDocument(repairId, documentType) {
   const response = await fetch(
     `${API_ORIGIN}/api/repairs/${encodeURIComponent(repairId)}/documents/${encodeURIComponent(documentType)}`,

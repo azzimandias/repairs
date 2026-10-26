@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { DownOutlined } from '@ant-design/icons';
-import { AutoComplete, Button, Checkbox, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Segmented, Select, Spin, notification } from 'antd';
+import { AutoComplete, Button, Checkbox, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Segmented, Select, Spin, Switch, notification } from 'antd';
 import { useRef } from 'react';
 import ruRU from 'antd/locale/ru_RU';
 import dayjs from 'dayjs';
@@ -25,6 +25,7 @@ import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOr
 import 'antd/dist/reset.css';
 import './styles.css';
 import { buildListUrl, readListUrlState } from './list-url-state';
+import { fetchInternalUsdRate } from './api';
 
 const homeUrl = import.meta.env.VITE_HOME_URL || '/';
 const emptyRequest = { id: '', status: '', status_id: null, equipment: '', client: '' };
@@ -966,6 +967,12 @@ function RequestPage({ currentUser, requestId }) {
   const [processingSpareAction, setProcessingSpareAction] = useState('');
   const [downloadingDocument, setDownloadingDocument] = useState('');
   const [isCreatingInvoiceRequest, setIsCreatingInvoiceRequest] = useState(false);
+  const [showRubles, setShowRubles] = useState(false);
+  const [internalUsdRate, setInternalUsdRate] = useState(null);
+  const [isLoadingRate, setIsLoadingRate] = useState(true);
+  const [rateError, setRateError] = useState('');
+  const moneyRate = showRubles && internalUsdRate ? internalUsdRate : 1;
+  const moneySymbol = showRubles && internalUsdRate ? '₽' : '$';
   const organizationSearchTimerRef = useRef(null);
   const organizationSearchRequestRef = useRef(0);
   const [notificationApi, notificationContext] = notification.useNotification();
@@ -991,6 +998,19 @@ function RequestPage({ currentUser, requestId }) {
   useEffect(() => {
     document.title = isNewRequest ? 'Сервис-центр | Новая заявка' : `Сервис-центр | ${requestId}`;
   }, [isNewRequest, requestId]);
+
+  useEffect(() => {
+    let ignore = false;
+    setInternalUsdRate(null);
+    setShowRubles(false);
+    setIsLoadingRate(true);
+    setRateError('');
+    fetchInternalUsdRate()
+      .then((rate) => { if (!ignore) setInternalUsdRate(rate); })
+      .catch(() => { if (!ignore) setRateError('Внутренний курс недоступен'); })
+      .finally(() => { if (!ignore) setIsLoadingRate(false); });
+    return () => { ignore = true; };
+  }, [currentUser?.active_company]);
 
   useEffect(() => {
     let ignore = false;
@@ -1613,6 +1633,20 @@ function RequestPage({ currentUser, requestId }) {
             </div>
           ) : (
             <div className="detail-meta">
+              <div className="currency-toggle">
+                <label>
+                  <Switch
+                    size="small"
+                    checked={showRubles}
+                    onChange={setShowRubles}
+                    loading={isLoadingRate}
+                    disabled={!internalUsdRate}
+                    aria-label="Все суммы в рублях"
+                  />
+                  <span>В рублях</span>
+                </label>
+                <small>{isLoadingRate ? 'Загрузка курса…' : rateError || `1 $ = ${internalUsdRate.toLocaleString('ru-RU')} ₽`}</small>
+              </div>
               {canCreateInvoiceRequest && (
                 <Button
                   className="app-button"
@@ -1688,6 +1722,8 @@ function RequestPage({ currentUser, requestId }) {
               />
               <FormBlock
                 title="Ремонтные работы"
+                moneyRate={moneyRate}
+                moneySymbol={moneySymbol}
                 fields={details.repair}
                 onChange={(field, value) => updateDetail('repair', field, value)}
                 selectOptions={repairOptions}
@@ -1716,7 +1752,7 @@ function RequestPage({ currentUser, requestId }) {
                         <th>Модель</th>
                         <th>Количество</th>
                         <th>На складе</th>
-                        <th>Цена $</th>
+                        <th>Цена {moneySymbol}</th>
                         <th>Комментарий</th>
                         <th></th>
                       </tr>
@@ -1781,8 +1817,9 @@ function RequestPage({ currentUser, requestId }) {
                           </td>
                           <td>
                             <div className="part-loading-cell">
-                              <InputNumber
-                                min={0}
+                              <MoneyInput
+                                rate={moneyRate}
+                                symbol={moneySymbol}
                                 value={part.price}
                                 className={isOwnSpare ? 'readonly-part-value' : ''}
                                 disabled={!canEditRepair || isLoadingSpare}
@@ -2165,6 +2202,8 @@ function FormBlock({
   onSelectSearch = {},
   disabled = false,
   wide = false,
+  moneyRate = 1,
+  moneySymbol = '$',
 }) {
   return (
     <section className={`detail-block ${wide ? 'wide-block' : ''}`}>
@@ -2173,7 +2212,15 @@ function FormBlock({
         {Object.entries(fields).map(([name, value]) => (
           <label className="field" key={name}>
             <span>{fieldLabels[name]}</span>
-            {name === 'model' && onModelChange ? (
+            {['diagnosisTotal', 'repairTotal'].includes(name) ? (
+              <MoneyInput
+                value={value}
+                rate={moneyRate}
+                symbol={moneySymbol}
+                disabled={disabled}
+                onChange={(nextValue) => onChange(name, nextValue ?? '')}
+              />
+            ) : name === 'model' && onModelChange ? (
               <AutoComplete
                 value={value}
                 disabled={disabled}
@@ -2229,6 +2276,27 @@ function FormBlock({
         ))}
       </div>
     </section>
+  );
+}
+
+function MoneyInput({ value, rate, symbol, onChange, ...props }) {
+  const displayValue = value === '' || value === null || value === undefined
+    ? null
+    : Number((Number(value) * rate).toFixed(2));
+
+  return (
+    <InputNumber
+      {...props}
+      key={symbol}
+      min={0}
+      precision={2}
+      value={displayValue}
+      suffix={symbol}
+      onChange={(nextValue) => {
+        // A blur of an unchanged rounded amount must not change the original USD value.
+        if (nextValue !== displayValue) onChange(nextValue === null ? null : nextValue / rate);
+      }}
+    />
   );
 }
 
