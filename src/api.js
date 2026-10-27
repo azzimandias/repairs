@@ -37,7 +37,7 @@ async function apiFetch(url, options = {}) {
 }
 
 function handleAuthError(status) {
-  if (![401, 403, 419].includes(status)) {
+  if (![401, 419].includes(status)) {
     return;
   }
 
