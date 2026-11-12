@@ -2229,7 +2229,7 @@ function FormBlock({
                 options={modelOptions.map((model) => ({ value: model.label, label: model.label, modelId: model.id }))}
                 onChange={(nextValue) => onModelChange(nextValue, '')}
                 onSelect={(nextValue, option) => onModelChange(nextValue, option.modelId)}
-                showSearch
+                showSearch={{ filterOption: true, optionFilterProp: 'label' }}
               />
             ) : remoteSelectFieldNames[name] ? (
               <Select
