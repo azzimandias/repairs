@@ -75,8 +75,8 @@ function getApiErrorMessage(result, fallback) {
   return result.msg || result.message || result.error || fallback;
 }
 
-export async function fetchRepairs(params) {
-  const result = await apiFetch(`${REPAIRS_ENDPOINT}?${buildRepairQuery(params)}`);
+export async function fetchRepairs(params, signal) {
+  const result = await apiFetch(`${REPAIRS_ENDPOINT}?${buildRepairQuery(params)}`, { signal });
 
   if (result?.error) {
     throw new Error(getApiErrorMessage(result, 'Ошибка загрузки заявок'));

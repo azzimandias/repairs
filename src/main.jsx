@@ -350,18 +350,6 @@ function mapBackendSpare(spare) {
   };
 }
 
-function matchesColumnFilters(request, filters) {
-  return columnKeys.every(key => {
-    const value = filters[key].trim();
-    if (!value) return true;
-    if (key === 'date' || key === 'issueDate') return formatDate(request[key]) === formatDate(value);
-    if (key === 'status') return String(request.status_id) === value;
-    if (key === 'id') return String(request.id) === value;
-    if (key === 'price') return Number(request.price) === Number(value);
-    return String(request[key] ?? '').toLocaleLowerCase().includes(value.toLocaleLowerCase());
-  });
-}
-
 function mapManagerOption(manager) {
   return {
     id: manager.id,
@@ -571,7 +559,7 @@ function RequestsListPage({ currentUser }) {
   const [filters, setFilters] = useState(initialUrlState.filters);
   const [requests, setRequests] = useState([]);
   const [managerOptions, setManagerOptions] = useState([]);
-  const [serverMeta, setPaginationMeta] = useState({
+  const [paginationMeta, setPaginationMeta] = useState({
     total: 0,
     lastPage: 1,
     from: 0,
@@ -603,20 +591,6 @@ function RequestsListPage({ currentUser }) {
     }
   }, [filters, page, pageSize]);
 
-  const filterAcrossPages = columnKeys.some(key => filters[key].trim());
-  const filteredRequests = React.useMemo(
-    () => filterAcrossPages ? requests.filter(request => matchesColumnFilters(request, filters)) : requests,
-    [requests, filters, filterAcrossPages]
-  );
-  const offset = (page - 1) * pageSize;
-  const visibleRequests = filterAcrossPages ? filteredRequests.slice(offset, offset + pageSize) : requests;
-  const paginationMeta = filterAcrossPages
-    ? { total: filteredRequests.length, lastPage: Math.ceil(filteredRequests.length / pageSize) }
-    : serverMeta;
-  const fetchPage = filterAcrossPages ? 1 : page;
-  const fetchSize = filterAcrossPages ? 100 : pageSize;
-  const { repairType, manager } = filters;
-
   useEffect(() => {
     document.title = 'Сервис-центр | Заявки на ремонт';
   }, []);
@@ -645,29 +619,22 @@ function RequestsListPage({ currentUser }) {
     let ignore = false;
 
     setIsLoading(true);
+    const controller = new AbortController();
 
-    async function loadRequests() {
-      const params = {
-        page: fetchPage, perPage: fetchSize, direction: 1, orderby: 'date',
-        fillters: { type: 0, manager: Number(manager) || 0,
-          'category-repair': repairType === 'Гарантийный' ? 2 : repairType === 'Платный' ? 1 : 0 },
-      };
-      const result = await fetchRepairs(params);
-      const rows = result.data.map(mapBackendRepair);
-      if (filterAcrossPages) {
-        for (let next = 2; !ignore && next <= result.last_page; next++) {
-          const batch = await fetchRepairs({ ...params, page: next });
-          rows.push(...batch.data.map(mapBackendRepair));
-        }
-      }
-      if (ignore) return;
-      setRequests(rows);
-      return result;
-    }
-
-    loadRequests()
+    const timer = window.setTimeout(() => {
+      const columnFilters = Object.fromEntries(columnKeys
+        .map(key => [key, filters[key].trim()])
+        .filter(([, value]) => value !== ''));
+      fetchRepairs({
+        page, perPage: pageSize, direction: 1, orderby: 'date',
+        fillters: {
+          type: 0, ...columnFilters, manager: Number(filters.manager) || 0,
+          'category-repair': filters.repairType === 'Гарантийный' ? 2 : filters.repairType === 'Платный' ? 1 : 0,
+        },
+      }, controller.signal)
       .then((result) => {
         if (ignore) return;
+        setRequests(result.data.map(mapBackendRepair));
         setPaginationMeta({
           total: result.total,
           lastPage: result.last_page,
@@ -695,11 +662,14 @@ function RequestsListPage({ currentUser }) {
           setIsLoading(false);
         }
       });
+    }, 300);
 
     return () => {
       ignore = true;
+      window.clearTimeout(timer);
+      controller.abort();
     };
-  }, [filterAcrossPages, fetchPage, fetchSize, manager, repairType]);
+  }, [filters, page, pageSize]);
 
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }));
@@ -742,7 +712,7 @@ function RequestsListPage({ currentUser }) {
       'Тип ремонта',
       'Статус заявки',
     ];
-    const rows = visibleRequests.map((request) => [
+    const rows = requests.map((request) => [
       request.id,
       request.date,
       request.uid,
@@ -854,7 +824,7 @@ function RequestsListPage({ currentUser }) {
                     ))}
                   </tr>
                 ))
-              : visibleRequests.map((request) => (
+              : requests.map((request) => (
                   <tr key={request.id} onDoubleClick={() => openRequest(request.id)} title="Двойной клик откроет заявку">
                     <td className="mono">{request.id}</td>
                     <td>{formatDate(request.date)}</td>
@@ -878,7 +848,7 @@ function RequestsListPage({ currentUser }) {
           </tbody>
         </table>
 
-        {!isLoading && visibleRequests.length === 0 && (
+        {!isLoading && requests.length === 0 && (
           <div className="empty-state">Заявки по выбранным фильтрам не найдены</div>
         )}
       </section>
