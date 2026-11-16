@@ -1,14 +1,12 @@
+export const columnKeys = ['id', 'date', 'uid', 'equipment', 'serialNumber', 'client', 'issueDate', 'price', 'status'];
 const defaultFilters = {
-  audience: 'all',
+  ...Object.fromEntries(columnKeys.map(key => [key, ''])),
   repairType: 'all',
   manager: 'all',
-  unfinished: false,
-  search: '',
 };
 
 export function readListUrlState(search) {
   const params = new URLSearchParams(search);
-  const audience = params.get('audience');
   const repairType = params.get('repairType');
   const manager = params.get('manager');
   const page = Number(params.get('page'));
@@ -16,11 +14,9 @@ export function readListUrlState(search) {
 
   return {
     filters: {
-      audience: ['manager', 'engineer'].includes(audience) ? audience : 'all',
+      ...Object.fromEntries(columnKeys.map(key => [key, params.get(key) || ''])),
       repairType: ['Платный', 'Гарантийный'].includes(repairType) ? repairType : 'all',
       manager: /^\d+$/.test(manager || '') && Number(manager) > 0 ? manager : 'all',
-      unfinished: params.get('unfinished') === '1',
-      search: params.get('search') || '',
     },
     page: Number.isSafeInteger(page) && page > 0 ? page : 1,
     pageSize: [30, 50, 100].includes(pageSize) ? pageSize : 30,
@@ -29,6 +25,7 @@ export function readListUrlState(search) {
 
 export function buildListUrl(href, { filters, page, pageSize }) {
   const url = new URL(href);
+  for (const key of ['audience', 'unfinished', 'search']) url.searchParams.delete(key);
   const values = { ...filters, page, pageSize };
   const defaults = { ...defaultFilters, page: 1, pageSize: 30 };
 

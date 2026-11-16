@@ -1,14 +1,12 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { DownOutlined } from '@ant-design/icons';
-import { AutoComplete, Button, Checkbox, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Segmented, Select, Spin, Switch, notification } from 'antd';
+import { AutoComplete, Button, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Pagination, Select, Spin, Switch, notification } from 'antd';
 import { useRef } from 'react';
 import ruRU from 'antd/locale/ru_RU';
 import dayjs from 'dayjs';
 import { createRoot } from 'react-dom/client';
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   Download,
   FilePlus2,
   Home,
@@ -16,7 +14,6 @@ import {
   Printer,
   RotateCcw,
   Save,
-  Search,
   Send,
   ShoppingCart,
   Trash2,
@@ -24,7 +21,7 @@ import {
 import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOrganizationRequisites, fetchRepair, fetchRepairManagers, fetchRepairOptions, fetchRepairOrganizations, fetchRepairs, fetchSalesModels, fetchSpareModel, orderRepairSpareParts, saveRepair } from './api';
 import 'antd/dist/reset.css';
 import './styles.css';
-import { buildListUrl, readListUrlState } from './list-url-state';
+import { buildListUrl, columnKeys, readListUrlState } from './list-url-state';
 import { fetchInternalUsdRate } from './api';
 
 const homeUrl = import.meta.env.VITE_HOME_URL || '/';
@@ -353,15 +350,16 @@ function mapBackendSpare(spare) {
   };
 }
 
-function buildBackendFilters(filters) {
-  const type = filters.unfinished ? 3 : filters.audience === 'manager' ? 1 : filters.audience === 'engineer' ? 2 : 0;
-
-  return {
-    type,
-    'category-repair': filters.repairType === 'Гарантийный' ? 2 : filters.repairType === 'Платный' ? 1 : 0,
-    manager: Number(filters.manager) || 0,
-    query: filters.search,
-  };
+function matchesColumnFilters(request, filters) {
+  return columnKeys.every(key => {
+    const value = filters[key].trim();
+    if (!value) return true;
+    if (key === 'date' || key === 'issueDate') return formatDate(request[key]) === formatDate(value);
+    if (key === 'status') return String(request.status_id) === value;
+    if (key === 'id') return String(request.id) === value;
+    if (key === 'price') return Number(request.price) === Number(value);
+    return String(request[key] ?? '').toLocaleLowerCase().includes(value.toLocaleLowerCase());
+  });
 }
 
 function mapManagerOption(manager) {
@@ -573,7 +571,7 @@ function RequestsListPage({ currentUser }) {
   const [filters, setFilters] = useState(initialUrlState.filters);
   const [requests, setRequests] = useState([]);
   const [managerOptions, setManagerOptions] = useState([]);
-  const [paginationMeta, setPaginationMeta] = useState({
+  const [serverMeta, setPaginationMeta] = useState({
     total: 0,
     lastPage: 1,
     from: 0,
@@ -605,9 +603,19 @@ function RequestsListPage({ currentUser }) {
     }
   }, [filters, page, pageSize]);
 
-  const totalPages = Math.max(1, paginationMeta.lastPage);
-  const visibleRequests = requests;
-  const nearbyPages = getNearbyPages(page, totalPages);
+  const filterAcrossPages = columnKeys.some(key => filters[key].trim());
+  const filteredRequests = React.useMemo(
+    () => filterAcrossPages ? requests.filter(request => matchesColumnFilters(request, filters)) : requests,
+    [requests, filters, filterAcrossPages]
+  );
+  const offset = (page - 1) * pageSize;
+  const visibleRequests = filterAcrossPages ? filteredRequests.slice(offset, offset + pageSize) : requests;
+  const paginationMeta = filterAcrossPages
+    ? { total: filteredRequests.length, lastPage: Math.ceil(filteredRequests.length / pageSize) }
+    : serverMeta;
+  const fetchPage = filterAcrossPages ? 1 : page;
+  const fetchSize = filterAcrossPages ? 100 : pageSize;
+  const { repairType, manager } = filters;
 
   useEffect(() => {
     document.title = 'Сервис-центр | Заявки на ремонт';
@@ -638,19 +646,28 @@ function RequestsListPage({ currentUser }) {
 
     setIsLoading(true);
 
-    fetchRepairs({
-      page,
-      perPage: pageSize,
-      direction: 1,
-      orderby: 'date',
-      fillters: buildBackendFilters(filters),
-    })
-      .then((result) => {
-        if (ignore) {
-          return;
+    async function loadRequests() {
+      const params = {
+        page: fetchPage, perPage: fetchSize, direction: 1, orderby: 'date',
+        fillters: { type: 0, manager: Number(manager) || 0,
+          'category-repair': repairType === 'Гарантийный' ? 2 : repairType === 'Платный' ? 1 : 0 },
+      };
+      const result = await fetchRepairs(params);
+      const rows = result.data.map(mapBackendRepair);
+      if (filterAcrossPages) {
+        for (let next = 2; !ignore && next <= result.last_page; next++) {
+          const batch = await fetchRepairs({ ...params, page: next });
+          rows.push(...batch.data.map(mapBackendRepair));
         }
+      }
+      if (ignore) return;
+      setRequests(rows);
+      return result;
+    }
 
-        setRequests(result.data.map(mapBackendRepair));
+    loadRequests()
+      .then((result) => {
+        if (ignore) return;
         setPaginationMeta({
           total: result.total,
           lastPage: result.last_page,
@@ -682,16 +699,25 @@ function RequestsListPage({ currentUser }) {
     return () => {
       ignore = true;
     };
-  }, [filters, page, pageSize]);
+  }, [filterAcrossPages, fetchPage, fetchSize, manager, repairType]);
 
   function updateFilter(name, value) {
     setFilters((current) => ({ ...current, [name]: value }));
     setPage(1);
   }
 
-  function goToPage(value) {
-    const nextPage = Math.min(totalPages, Math.max(1, Number(value) || 1));
-    setPage(nextPage);
+  function columnInput(key, label, kind = 'text') {
+    const props = { className: 'column-filter', size: 'small', variant: 'borderless',
+      'aria-label': label, placeholder: label };
+    if (kind === 'date') {
+      return <DatePicker {...props} format="DD.MM.YYYY" value={filters[key] ? dayjs(filters[key]) : null}
+        onChange={date => updateFilter(key, date ? date.format('YYYY-MM-DD') : '')} />;
+    }
+    if (kind === 'number') {
+      return <InputNumber {...props} controls={false} value={filters[key] || null}
+        onChange={value => updateFilter(key, value == null ? '' : String(value))} />;
+    }
+    return <Input {...props} allowClear value={filters[key]} onChange={event => updateFilter(key, event.target.value)} />;
   }
 
   function openRequest(requestId) {
@@ -712,11 +738,11 @@ function RequestsListPage({ currentUser }) {
       'Клиент',
       'Менеджер',
       'Дата выдачи',
-      'Стоимость',
+      'Стоимость, $',
       'Тип ремонта',
       'Статус заявки',
     ];
-    const rows = requests.map((request) => [
+    const rows = visibleRequests.map((request) => [
       request.id,
       request.date,
       request.uid,
@@ -725,7 +751,7 @@ function RequestsListPage({ currentUser }) {
       request.client,
       request.manager,
       request.issueDate || '-',
-      formatCurrency(request.price),
+      formatPrice(request.price),
       request.repairType,
       request.status,
     ]);
@@ -771,111 +797,6 @@ function RequestsListPage({ currentUser }) {
           </div>
         </header>
 
-        <section className="toolbar" aria-label="Фильтры заявок">
-          <Segmented
-            className="segmented"
-            value={filters.audience}
-            onChange={(value) => updateFilter('audience', value)}
-            options={[
-              { value: 'all', label: 'Все' },
-              { value: 'manager', label: 'Для менеджера' },
-              { value: 'engineer', label: 'Для инженера' },
-            ]}
-          />
-
-        <label className="checkbox-filter">
-            <Checkbox
-              checked={filters.unfinished}
-              onChange={(event) => updateFilter('unfinished', event.target.checked)}
-            />
-            Незаконченные
-          </label>
-
-          <Select
-            value={filters.repairType}
-            onChange={(value) => updateFilter('repairType', value)}
-            options={[
-              { value: 'all', label: 'Любой тип ремонта' },
-              { value: 'Платный', label: 'Платный' },
-              { value: 'Гарантийный', label: 'Гарантийный' },
-            ]}
-          />
-
-          <Select
-            showSearch
-            value={filters.manager}
-            onChange={(value) => updateFilter('manager', value)}
-            optionFilterProp="label"
-            options={[
-              { value: 'all', label: 'Все менеджеры' },
-              ...managerOptions.map((manager) => ({ value: String(manager.id), label: manager.label })),
-            ]}
-          />
-
-          <Input
-            className="search-field"
-            prefix={<Search size={18} />}
-            allowClear
-            placeholder="Поиск по тексту"
-            value={filters.search}
-            onChange={(event) => updateFilter('search', event.target.value)}
-          />
-        </section>
-
-        <section className="table-pagination" aria-label="Пагинация заявок">
-          <span>
-            Найдено: <strong>{paginationMeta.total}</strong>
-            {paginationMeta.total > 0 && (
-              <span className="page-range">
-                {paginationMeta.from}-{paginationMeta.to}
-              </span>
-            )}
-          </span>
-          <label className="page-size">
-            Строк на странице
-            <Select
-              value={pageSize}
-              onChange={(value) => {
-                setPageSize(Number(value));
-                setPage(1);
-              }}
-              options={[
-                { value: 30, label: '30' },
-                { value: 50, label: '50' },
-                { value: 100, label: '100' },
-              ]}
-            />
-          </label>
-          <div className="pager">
-          <Button className="icon-button" disabled={page === 1} icon={<ChevronLeft size={18} />} onClick={() => setPage(page - 1)} />
-          <div className="page-buttons">
-            {nearbyPages.map((pageNumber) => (
-              <Button
-                className={`page-button ${pageNumber === page ? 'active' : ''}`}
-                key={pageNumber}
-                onClick={() => setPage(pageNumber)}
-              >
-                {pageNumber}
-              </Button>
-            ))}
-          </div>
-          <label className="page-jump">
-            <span>№</span>
-            <InputNumber
-              min={1}
-              max={totalPages}
-              value={page}
-              onChange={(value) => goToPage(value)}
-            />
-          </label>
-          <Button
-            className="icon-button"
-            disabled={page === totalPages}
-            icon={<ChevronRight size={18} />}
-            onClick={() => setPage(page + 1)}
-          />
-          </div>
-        </section>
         {loadError && <div className="load-error">{loadError}</div>}
       </div>
 
@@ -883,17 +804,43 @@ function RequestsListPage({ currentUser }) {
         <table className="requests-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Дата</th>
-              <th>UID</th>
-              <th>Оборудование</th>
-              <th>Серийный номер</th>
-              <th>Клиент</th>
-              <th>Менеджер</th>
-              <th>Дата выдачи</th>
-              <th>Стоимость</th>
-              <th>Тип ремонта</th>
-              <th>Статус заявки</th>
+              <th>{columnInput('id', 'ID', 'number')}</th>
+              <th>{columnInput('date', 'Дата', 'date')}</th>
+              <th>{columnInput('uid', 'UID')}</th>
+              <th>{columnInput('equipment', 'Оборудование')}</th>
+              <th>{columnInput('serialNumber', 'Серийный номер')}</th>
+              <th>{columnInput('client', 'Клиент')}</th>
+              <th>
+                <Select size="small" variant="borderless" className="column-filter" aria-label="Менеджер"
+                  showSearch optionFilterProp="label" value={filters.manager}
+                  onChange={(value) => updateFilter('manager', value)}
+                  options={[{ value: 'all', label: 'Менеджер' },
+                    ...managerOptions.map((manager) => ({ value: String(manager.id), label: manager.label }))]} />
+              </th>
+              <th>{columnInput('issueDate', 'Дата выдачи', 'date')}</th>
+              <th>{columnInput('price', 'Стоимость, $', 'number')}</th>
+              <th>
+                <Select size="small" variant="borderless" className="column-filter" aria-label="Тип ремонта"
+                  value={filters.repairType} onChange={(value) => updateFilter('repairType', value)}
+                  options={[{ value: 'all', label: 'Тип ремонта' }, { value: 'Платный' }, { value: 'Гарантийный' }]} />
+              </th>
+              <th>
+                <Select size="small" variant="borderless" className="column-filter" aria-label="Статус заявки"
+                  placeholder="Статус заявки" allowClear showSearch optionFilterProp="searchText"
+                  styles={{ placeholder: { color: 'white' }, content: { color: 'white' } }}
+                  popupMatchSelectWidth={380} value={filters.status || undefined}
+                  onChange={value => updateFilter('status', value || '')}
+                  options={requestStatusRoadmap.map(step => ({
+                    value: String(step.number), label: step.status, role: step.role,
+                    searchText: `${step.status} ${step.role}`,
+                  }))}
+                  optionRender={({ data }) => (
+                    <div className="status-option">
+                      <span>{data.label}</span>
+                      <span className={`status-role-tag ${getRoadmapRoleClass(data.role)}`}>{data.role}</span>
+                    </div>
+                  )} />
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -917,14 +864,14 @@ function RequestsListPage({ currentUser }) {
                     <td>{request.client}</td>
                     <td>{request.manager}</td>
                     <td>{request.issueDate ? formatDate(request.issueDate) : '-'}</td>
-                    <td>{formatCurrency(request.price)}</td>
+                    <td>{formatPrice(request.price)}</td>
                     <td>
                       <span className={`repair-type ${request.repairType === 'Гарантийный' ? 'warranty' : 'paid'}`}>
                         {request.repairType}
                       </span>
                     </td>
                     <td>
-                      <span className="status-pill">{request.status}</span>
+                      <RequestStatusTag request={request} />
                     </td>
                   </tr>
                 ))}
@@ -935,20 +882,33 @@ function RequestsListPage({ currentUser }) {
           <div className="empty-state">Заявки по выбранным фильтрам не найдены</div>
         )}
       </section>
+
+      <section className="table-pagination" aria-label="Пагинация заявок">
+        <Pagination current={page} pageSize={pageSize} total={paginationMeta.total}
+          showTotal={(total) => `Всего: ${total}`} showSizeChanger={paginationMeta.total > 30 || pageSize !== 30}
+          pageSizeOptions={[30, 50, 100]} showQuickJumper={paginationMeta.lastPage > 5}
+          onChange={(nextPage, nextSize) => {
+            setPageSize(nextSize);
+            setPage(nextSize === pageSize ? nextPage : 1);
+          }}
+        />
+      </section>
     </main>
   );
 }
 
-function getNearbyPages(currentPage, totalPages) {
-  const maxVisible = 5;
-  const half = Math.floor(maxVisible / 2);
-  const start = Math.max(1, Math.min(currentPage - half, totalPages - maxVisible + 1));
-  const end = Math.min(totalPages, start + maxVisible - 1);
-
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-}
-
 function RequestPage({ currentUser, requestId }) {
+  const headerRef = useRef(null);
+  React.useLayoutEffect(() => {
+    const header = headerRef.current;
+    const updateOffset = () => {
+      header.parentElement.style.setProperty('--detail-roadmap-top', `${header.getBoundingClientRect().height}px`);
+    };
+    updateOffset();
+    const observer = new ResizeObserver(updateOffset);
+    observer.observe(header, { box: 'border-box' });
+    return () => observer.disconnect();
+  }, []);
   const isNewRequest = requestId === 'new';
   const canEditEquipment = hasUserAcl(currentUser, 78);
   const canEditRepair = hasUserAcl(currentUser, 79);
@@ -1597,7 +1557,7 @@ function RequestPage({ currentUser, requestId }) {
   return (
     <main className="app-shell detail-shell">
       {notificationContext}
-      <div className="sticky-controls detail-sticky-controls">
+      <div ref={headerRef} className="sticky-controls detail-sticky-controls">
         <GlobalHeader currentUser={currentUser} />
         <header className="topbar detail-header">
           <div className="detail-title">
@@ -1963,6 +1923,12 @@ function getNextRoadmapStatus(request) {
   }
 
   return nextStatus || null;
+}
+
+function RequestStatusTag({ request }) {
+  const role = getRoadmapStatusByNumber(request.status_id)?.role;
+  const className = role ? `status-pill status-role-tag ${getRoadmapRoleClass(role)}` : 'status-pill';
+  return <span className={className} title={role}>{request.status}</span>;
 }
 
 function getRoadmapStatusByNumber(statusNumber) {
@@ -2602,8 +2568,10 @@ function formatDate(value) {
   return Number.isNaN(parsedDate.getTime()) ? '-' : new Intl.DateTimeFormat('ru-RU').format(parsedDate);
 }
 
-function formatCurrency(value) {
-  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(Number(value) || 0);
+const priceFormatter = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
+
+function formatPrice(value) {
+  return priceFormatter.format(Number(value) || 0);
 }
 
 function escapeHtml(value) {
