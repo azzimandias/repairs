@@ -1,23 +1,10 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { DownOutlined } from '@ant-design/icons';
-import { AutoComplete, Button, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Pagination, Select, Spin, Switch, notification } from 'antd';
+import { ArrowLeftOutlined, DownloadOutlined, DownOutlined, HomeOutlined, PlusOutlined, PrinterOutlined, SaveOutlined, DeleteOutlined, RollbackOutlined, SendOutlined, ShoppingCartOutlined } from '@ant-design/icons';
+import { AutoComplete, Avatar, Button, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Pagination, Select, Spin, Switch, notification } from 'antd';
 import { useRef } from 'react';
 import ruRU from 'antd/locale/ru_RU';
 import dayjs from 'dayjs';
 import { createRoot } from 'react-dom/client';
-import {
-  ArrowLeft,
-  Download,
-  FilePlus2,
-  Home,
-  Plus,
-  Printer,
-  RotateCcw,
-  Save,
-  Send,
-  ShoppingCart,
-  Trash2,
-} from 'lucide-react';
 import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOrganizationRequisites, fetchRepair, fetchRepairManagers, fetchRepairOptions, fetchRepairOrganizations, fetchRepairs, fetchSalesModels, fetchSpareModel, orderRepairSpareParts, saveRepair } from './api';
 import 'antd/dist/reset.css';
 import './styles.css';
@@ -482,13 +469,12 @@ function AppRoot() {
 
 function GlobalHeader({ currentUser }) {
   const userName = formatUserName(currentUser) || 'Пользователь';
-  const userInitials = getUserInitials(userName);
 
   return (
     <div className="global-header">
       <div className="title-kicker">
-        <a className="home-link" href={homeUrl} title="На главную">
-          <Home size={17} />
+        <a className="home-link" href={homeUrl} title="На главную ERP" aria-label="На главную ERP">
+          <HomeOutlined />
         </a>
         <p className="eyebrow">Сервис-центр</p>
       </div>
@@ -505,10 +491,8 @@ function GlobalHeader({ currentUser }) {
         trigger={['hover']}
       >
         <div className="user-profile" title="Текущий пользователь">
-          <div className="user-avatar">{userInitials}</div>
-          <div className="user-name">
-            <strong>{userName}</strong>
-          </div>
+          <Avatar size={23} shape="square" className="profile-avatar">{userName.charAt(0)}</Avatar>
+          <strong>{userName}</strong>
         </div>
       </Dropdown>
     </div>
@@ -528,30 +512,13 @@ function formatUserName(user) {
     user.full_name ||
     user.fullName ||
     user.fio ||
-    [user.name, user.surname].filter(Boolean).join(' ') ||
+    [user.surname, user.name].filter(Boolean).join(' ') ||
     [user.first_name, user.last_name].filter(Boolean).join(' ') ||
     user.name ||
     user.login ||
     user.email ||
     ''
   );
-}
-
-function getUserInitials(name) {
-  const parts = String(name || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (parts.length === 0) {
-    return 'П';
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase();
 }
 
 function RequestsListPage({ currentUser }) {
@@ -758,10 +725,10 @@ function RequestsListPage({ currentUser }) {
             <h1>Заявки на ремонт</h1>
           </div>
           <div className="topbar-actions">
-            <Button className="app-button" icon={<Download size={16} />} onClick={exportExcel}>
+            <Button className="app-button" icon={<DownloadOutlined />} onClick={exportExcel}>
               Excel
             </Button>
-            <Button className="app-button" type="primary" icon={<FilePlus2 size={16} />} onClick={createRequest}>
+            <Button className="app-button" type="primary" icon={<PlusOutlined />} onClick={createRequest}>
               Создать заявку
             </Button>
           </div>
@@ -1531,7 +1498,7 @@ function RequestPage({ currentUser, requestId }) {
         <GlobalHeader currentUser={currentUser} />
         <header className="topbar detail-header">
           <div className="detail-title">
-            <Button className="icon-button back-button" icon={<ArrowLeft size={18} />} onClick={() => window.close()} />
+            <Button className="back-button" aria-label="Назад" icon={<ArrowLeftOutlined />} onClick={() => window.close()} />
             {isLoading ? (
               <div className="detail-title-skeleton">
                 <span className="skeleton-line short" />
@@ -1580,7 +1547,7 @@ function RequestPage({ currentUser, requestId }) {
               {canCreateInvoiceRequest && (
                 <Button
                   className="app-button"
-                  icon={<Send size={16} />}
+                  icon={<SendOutlined />}
                   loading={isCreatingInvoiceRequest}
                   disabled={isCreatingInvoiceRequest}
                   onClick={handleCreateInvoiceRequest}
@@ -1599,7 +1566,7 @@ function RequestPage({ currentUser, requestId }) {
               >
                 <Button
                   className="app-button"
-                  icon={<Printer size={16} />}
+                  icon={<PrinterOutlined />}
                   loading={Boolean(downloadingDocument)}
                   disabled={!request.id || availablePrintDocumentItems.length === 0 || Boolean(downloadingDocument)}
                 >
@@ -1610,7 +1577,7 @@ function RequestPage({ currentUser, requestId }) {
               <Button
                 className="app-button"
                 type="primary"
-                icon={<Save size={16} />}
+                icon={<SaveOutlined />}
                 disabled={!hasChanges || isSaving || hasPendingSpareChanges}
                 loading={isSaving}
                 onClick={saveRequest}
@@ -1665,10 +1632,10 @@ function RequestPage({ currentUser, requestId }) {
                 <div className="block-title-row">
                   <h2>Запчасти</h2>
                   <div className="parts-actions">
-                    <Button className="app-button" disabled={!canEditRepair} icon={<Plus size={16} />} onClick={() => addPart('Покупная')}>
+                    <Button className="app-button" disabled={!canEditRepair} icon={<PlusOutlined />} onClick={() => addPart('Покупная')}>
                       Добавить покупную запчасть
                     </Button>
-                    <Button className="app-button" disabled={!canEditRepair} icon={<Plus size={16} />} onClick={() => addPart('Наша')}>
+                    <Button className="app-button" disabled={!canEditRepair} icon={<PlusOutlined />} onClick={() => addPart('Наша')}>
                       Добавить нашу запчасть
                     </Button>
                   </div>
@@ -1774,10 +1741,10 @@ function RequestPage({ currentUser, requestId }) {
                           </td>
                           <td className="part-actions-cell">
                             <Button
-                              className="icon-button delete-row-button"
+                              aria-label="Удалить запчасть"
                               danger
                               disabled={!canEditRepair}
-                              icon={<Trash2 size={16} />}
+                              icon={<DeleteOutlined />}
                               onClick={() => removePart(index)}
                             />
                           </td>
@@ -1792,7 +1759,7 @@ function RequestPage({ currentUser, requestId }) {
                   <Button
                     className="app-button"
                     type="primary"
-                    icon={<ShoppingCart size={16} />}
+                    icon={<ShoppingCartOutlined />}
                     disabled={!canEditRepair || !spareChanges.hasOrder || isSaving}
                     loading={processingSpareAction === 'order'}
                     onClick={() => saveSpareChanges('order')}
@@ -1802,7 +1769,7 @@ function RequestPage({ currentUser, requestId }) {
                   <Button
                     className="app-button"
                     danger
-                    icon={<RotateCcw size={16} />}
+                    icon={<RollbackOutlined />}
                     disabled={!canEditRepair || !spareChanges.hasReturn || isSaving}
                     loading={processingSpareAction === 'return'}
                     onClick={() => saveSpareChanges('return')}

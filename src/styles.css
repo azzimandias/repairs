@@ -856,14 +856,14 @@ td {
   border-top: 1px solid #dbe8f6;
 }
 
-.roadmap-actions .button {
+.roadmap-actions .app-button {
   width: 100%;
   height: auto;
   min-height: 38px;
   white-space: normal;
 }
 
-.roadmap-actions .button span {
+.roadmap-actions .app-button span {
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: normal;
@@ -1083,7 +1083,6 @@ td {
 
 .back-button {
   flex: 0 0 auto;
-  margin-top: 2px;
 }
 
 .detail-content-scroll {
@@ -1663,8 +1662,31 @@ body { color: var(--text); background: var(--page-bg); }
   background: var(--surface);
 }
 
-.list-shell .global-header, .topbar { margin-bottom: 8px; }
-.list-shell .topbar { margin-bottom: 0; }
+.app-shell .sticky-controls { padding-block: 8px 6px; }
+.sticky-controls > .global-header { min-height: 41px; margin-bottom: 0; }
+.sticky-controls > .topbar {
+  min-height: 38px;
+  margin: 0;
+  padding-top: 6px;
+  flex-flow: row wrap;
+  align-items: center;
+}
+.sticky-controls { font-family: Inter, "Segoe UI", sans-serif; font-size: 13px; }
+.sticky-controls h1 { font-weight: 700; }
+.sticky-controls .detail-title-row h1 { font-size: 20px; line-height: 1.2; font-weight: 600; }
+:is(.sticky-controls .topbar, .detail-shell) .ant-btn { font-weight: 400; box-shadow: none; }
+:is(.sticky-controls .topbar, .detail-shell) .ant-btn-primary:enabled {
+  color: white;
+  border-color: #194c94;
+  background: linear-gradient(#306ec2, #20569f);
+  box-shadow: inset 0 1px 0 #ffffff38, 0 2px 0 #163f76;
+}
+:is(.sticky-controls .topbar, .detail-shell) .ant-btn-primary:enabled:hover { background: linear-gradient(#3777cb, #265fae); }
+:is(.sticky-controls .topbar, .detail-shell) .ant-btn-primary:enabled:active {
+  transform: translateY(1px);
+  background: #204f90;
+  box-shadow: inset 0 2px 3px #12386766;
+}
 
 .global-header {
   min-height: 30px;
@@ -1688,8 +1710,8 @@ h2 { font-size: 14px; font-weight: 800; letter-spacing: .01em; }
   min-height: 28px; padding: 2px 8px 2px 2px; border-color: #9eabb9;
   border-radius: 3px; background: #fff;
 }
-.user-avatar { width: 23px; height: 23px; border-radius: 2px; background: #31465f; }
-.user-name strong { font-size: 12px; }
+.user-profile { font-size: 12px; color: var(--text); }
+.user-profile .profile-avatar { background: #31465f; }
 
 .app-button, .button, .icon-button, .toolbar .ant-select,
 .toolbar .ant-input-affix-wrapper, .toolbar .ant-segmented.segmented,
@@ -1737,8 +1759,7 @@ td { color: #243244; font-size: 12px; }
 .status-pill { border-color: #9db5ce; background: #eef3f8; color: #2b445e; }
 
 .detail-shell { --detail-roadmap-top: 78px; width: calc(100% - 20px); padding-bottom: 12px; }
-.detail-sticky-controls { margin: -10px 0 0; padding: 6px 0 0; }
-.detail-header { min-height: 42px; margin-bottom: 0; padding-block: 5px; }
+.detail-sticky-controls { margin: -10px 0 0; }
 .detail-title-row { gap: 7px; }
 .detail-request-id {
   height: 32px; padding: 2px 7px; border-color: #9eabb9; border-radius: 3px;
@@ -1796,7 +1817,7 @@ td { color: #243244; font-size: 12px; }
 .roadmap-timeline-role, .roadmap-role-heading { font-size: 9px; }
 .custom-roadmap-item.current .roadmap-timeline-content { padding: 4px 6px; border-radius: 3px; }
 .roadmap-actions { gap: 5px; padding-top: 6px; }
-.roadmap-actions .button { min-height: 32px; }
+.roadmap-actions .app-button { min-height: 32px; }
 
 @media (max-width: 1280px) {
   .detail-layout { grid-template-columns: minmax(0, 1fr) 300px; }
@@ -1831,7 +1852,7 @@ td { color: #243244; font-size: 12px; }
   background: white;
   flex-shrink: 0;
 }
-.list-shell .table-wrap { flex: 0 1 auto; border-radius: 4px 4px 0 0; }
+.list-shell .table-wrap { flex: 0 1 auto; margin-top: 8px; border-radius: 4px 4px 0 0; }
 .list-shell .table-pagination {
   flex: none;
   flex-wrap: wrap;
@@ -1870,7 +1891,7 @@ td { color: #243244; font-size: 12px; }
   color: white;
   border-radius: 3px;
 }
-.requests-table .column-filter :is(.ant-select-selection-item, .ant-select-selection-placeholder, .ant-select-arrow, .ant-select-clear, .ant-input-clear-icon, .ant-picker-suffix),
+.requests-table .column-filter :is(.ant-select-selection-item, .ant-select-selection-placeholder, .ant-select-arrow, .ant-select-suffix, .ant-select-clear, .ant-input-clear-icon, .ant-picker-suffix),
 .requests-table .column-filter input::placeholder { color: white; }
 .requests-table .column-filter input { color: white; background: transparent; text-align: center; }
 .requests-table .column-filter :is(.ant-select-content, .ant-select-selection-item, .ant-select-placeholder) {
