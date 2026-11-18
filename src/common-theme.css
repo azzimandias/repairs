@@ -57,6 +57,22 @@ html[data-page-theme="main"] body :is(
     color: white !important;
 }
 
+html[data-page-theme="main"] body :is(
+    .ant-btn,
+    .ant-radio-button-wrapper-checked,
+    .sk-gtr-button.active,
+    .sk-form-button-stack > .sk-active
+):not(:disabled, .ant-btn-disabled, .ant-btn-dangerous, .ant-radio-button-wrapper-disabled) {
+    border-radius: 4px !important;
+}
+
+html[data-page-theme="main"] .ant-pagination :is(
+    .ant-select,
+    .ant-select-outlined,
+    .ant-pagination-options-size-changer-select,
+    .ant-pagination-options-size-changer) {
+    border-radius: 4px !important;
+}
 
 html[data-page-theme="main"] body {
     font-family: var(--ui-font);
