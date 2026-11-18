@@ -495,7 +495,8 @@ function AppRoot() {
 
 function GlobalHeader({ currentUser }) {
   const userName = formatUserName(currentUser) || 'Пользователь';
-    const { pathname } = window.location.pathname;
+  const { pathname } = window.location;
+  const activeMenuKey = pathname.startsWith('/requests/') ? '/' : pathname;
 
   return (
     <div className="ui-topmenu">
@@ -507,7 +508,7 @@ function GlobalHeader({ currentUser }) {
           <Menu
               mode="horizontal"
               items={menu}
-              selectedKeys={[pathname]}
+              selectedKeys={[activeMenuKey]}
               style={{ flex: 1, minWidth: 0 }}
               disabledOverflow
           />
