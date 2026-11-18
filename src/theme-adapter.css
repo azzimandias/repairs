@@ -1,0 +1,75 @@
+/* Page layout adapters. All shared visual tokens come from common-theme.css.
+   Column widths and semantic status/role colours remain owned by the pages. */
+html[data-page-theme="main"] {
+  --page-bg: var(--ui-alt-row);
+  --surface: var(--ui-surface);
+  --border: var(--ui-border);
+  --border-strong: var(--ui-bar-border);
+  --text: var(--ui-text);
+  --accent: var(--sk-active-button);
+}
+html[data-page-theme="main"] {
+  .app-shell { --gutter: var(--ui-bar-gutter); padding-top: 0; padding-bottom: var(--ui-bar-gap); }
+  .detail-shell { --detail-section-gap: var(--ui-bar-gap); }
+  .app-shell .sticky-controls { margin-top: 0; margin-bottom: 0; padding-block: 0; border: 0; font: inherit; background: var(--ui-surface); }
+  .sticky-controls > .topbar { min-height: var(--ui-pagebar-height); margin: 0; padding-block: var(--ui-bar-gap); }
+  .topbar { margin-inline: calc(-1 * var(--ui-bar-gutter)); }
+  .ui-topmenu-actions { min-width: 0; max-width: 60%; }
+  .ui-topmenu-user strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-actions, .detail-meta, .parts-actions, .spare-operation-actions { gap: var(--ui-bar-gap); flex-wrap: wrap; }
+  .detail-title { flex-basis: 35%; }
+  .detail-title-row { flex-wrap: wrap; white-space: normal; }
+  .detail-title-row h1 { max-width: 100%; font-size: var(--ui-page-title-size); font-weight: var(--ui-heading-weight); }
+  .detail-request-id, .detail-client-name { color: var(--ui-text); font-size: var(--ui-heading-size); }
+  .detail-request-id { border-color: var(--ui-border); border-radius: var(--ui-card-radius); }
+  .detail-meta { max-width: 100%; }
+  .currency-toggle { min-height: var(--ui-row-height); flex-wrap: wrap; white-space: normal; gap: var(--ui-bar-gap); border-radius: var(--ui-card-radius); box-shadow: none; }
+  .currency-toggle label, .currency-toggle small { font-size: var(--ui-heading-size); color: var(--ui-text); }
+  .app-button { min-height: var(--ui-row-height); font-weight: var(--ui-heading-weight); }
+  .ant-btn-primary:enabled { box-shadow: none; }
+  .ant-btn-primary:enabled:hover { background: var(--sk-active-button-hover) !important; border-color: var(--sk-active-button-hover) !important; }
+  .ant-btn-primary:enabled:active { transform: none; }
+  .table-wrap, .detail-block, .roadmap-card {
+    border-color: var(--ui-border); border-radius: var(--ui-card-radius); background: var(--ui-surface); box-shadow: var(--ui-card-shadow);
+  }
+  .list-shell .table-wrap { margin-top: var(--ui-bar-gap); }
+  .ui-table { color: var(--ui-text); font-size: var(--ui-text-size); }
+  .ui-table td { color: var(--ui-text); font-size: var(--ui-text-size); border-right-color: var(--ui-divider); }
+  .ui-table th { text-transform: none; }
+  .ui-table tbody tr:nth-child(odd) { background: var(--ui-alt-row); }
+  .ui-table tbody tr:nth-child(even) { background: var(--ui-surface); }
+  .ui-table tbody tr:hover { background: var(--ui-hover-row); box-shadow: none; }
+  .mono { font-family: var(--ui-font); font-size: var(--ui-text-size); }
+  .column-filter, .column-filter input { font-size: var(--ui-heading-size); font-weight: var(--ui-heading-weight); }
+  .repair-type, .status-pill { font-size: var(--ui-heading-size); min-height: 0; line-height: 1.4; }
+  .detail-block, .roadmap-card { padding: var(--ui-card-padding); }
+  .detail-block > h2, .detail-block > .block-title-row, .roadmap-card > .roadmap-card-header {
+    min-height: var(--ui-heading-height); margin: calc(-1 * var(--ui-card-padding)) calc(-1 * var(--ui-card-padding)) 0;
+    padding: var(--ui-bar-gap) var(--ui-card-padding); border-radius: var(--ui-card-radius);
+    border-color: var(--ui-border); background: var(--ui-section-bg); color: var(--ui-text);
+    font-size: var(--ui-heading-size); font-weight: var(--ui-heading-weight);
+  }
+  h2, .status-tooltip-title { font-size: var(--ui-heading-size); font-weight: var(--ui-heading-weight); color: var(--ui-text); }
+  .detail-grid, .detail-layout { gap: var(--ui-bar-gap); }
+  .fields-grid { margin-top: var(--ui-bar-gap); border-color: var(--ui-border); border-radius: var(--ui-card-radius); }
+  .field { min-height: var(--ui-row-height); border-color: var(--ui-divider); }
+  .field > span { padding: var(--ui-cell-padding); border-color: var(--ui-divider); background: var(--ui-alt-row); color: var(--ui-text); font-size: var(--ui-heading-size); }
+  .field:hover > span { background: var(--ui-hover-row); }
+  .field input, .field .ant-select-selection-item, .field .ant-picker-input > input { font-size: var(--ui-text-size); }
+  .parts-table-wrap { margin-inline: calc(-1 * var(--ui-card-padding)); }
+  .parts-table-wrap:last-child { margin-bottom: calc(-1 * var(--ui-card-padding)); }
+  .parts-table :is(.ant-input, .ant-input-number, .ant-select, .ant-btn) { min-height: 0; height: calc(var(--ui-row-height) - 6px); font-size: var(--ui-text-size); }
+  .parts-table .ant-input-number-input { height: calc(var(--ui-row-height) - 8px); }
+  .roadmap-timeline-title { font-size: var(--ui-heading-size); }
+  .roadmap-actions { gap: var(--ui-bar-gap); border-color: var(--ui-divider); }
+  .roadmap-actions .app-button { min-height: var(--ui-row-height); }
+  @media (max-width: 820px) {
+    .detail-title { flex-basis: 100%; }
+    .detail-meta { justify-content: flex-start; }
+    .roadmap-column { height: auto; }
+    .roadmap-column .roadmap-card { height: auto; overflow: visible; }
+    .block-title-row { gap: var(--ui-bar-gap); }
+    .topbar-actions .ant-btn, .detail-meta .ant-btn, .parts-actions .ant-btn { flex-shrink: 0; }
+    .detail-title-skeleton { min-width: 0; }
+  }
+}

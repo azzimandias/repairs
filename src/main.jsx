@@ -1,6 +1,6 @@
 ﻿import React, { useEffect, useState } from 'react';
 import { ArrowLeftOutlined, DownloadOutlined, DownOutlined, HomeOutlined, PlusOutlined, PrinterOutlined, SaveOutlined, DeleteOutlined, RollbackOutlined, SendOutlined, ShoppingCartOutlined } from '@ant-design/icons';
-import { AutoComplete, Avatar, Button, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Pagination, Select, Spin, Switch, notification } from 'antd';
+import { AutoComplete, Button, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Pagination, Select, Spin, Switch, notification } from 'antd';
 import { useRef } from 'react';
 import ruRU from 'antd/locale/ru_RU';
 import dayjs from 'dayjs';
@@ -8,6 +8,13 @@ import { createRoot } from 'react-dom/client';
 import { createInvoiceRequest, downloadRepairDocument, fetchCurrentUser, fetchOrganizationRequisites, fetchRepair, fetchRepairManagers, fetchRepairOptions, fetchRepairOrganizations, fetchRepairs, fetchSalesModels, fetchSpareModel, orderRepairSpareParts, saveRepair } from './api';
 import 'antd/dist/reset.css';
 import './styles.css';
+import './common-theme.css';
+import './theme-adapter.css';
+
+// Ant Design also reads its tokens from the shared CSS theme.
+const themeStyles = getComputedStyle(document.documentElement);
+const themeValue = (name) => themeStyles.getPropertyValue(name).trim();
+const themeNumber = (name) => Number.parseFloat(themeValue(name));
 import { buildListUrl, columnKeys, readListUrlState } from './list-url-state';
 import { fetchInternalUsdRate } from './api';
 
@@ -449,16 +456,16 @@ function AppRoot() {
       locale={ruRU}
       theme={{
         token: {
-          colorPrimary: '#1f4f82',
-          colorInfo: '#1f4f82',
-          colorBgContainer: '#ffffff',
-          colorBorder: '#b8c4d1',
-          colorText: '#182433',
-          colorTextSecondary: '#536274',
-          borderRadius: 4,
-          controlHeight: 32,
-          fontSize: 13,
-          fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          colorPrimary: themeValue('--sk-active-button'),
+          colorInfo: themeValue('--sk-active-button'),
+          colorBgContainer: themeValue('--ui-surface'),
+          colorBorder: themeValue('--ui-border'),
+          colorText: themeValue('--ui-text'),
+          colorTextSecondary: themeValue('--ui-text'),
+          borderRadius: themeNumber('--ui-card-radius'),
+          controlHeight: themeNumber('--ui-row-height'),
+          fontSize: themeNumber('--ui-text-size'),
+          fontFamily: themeValue('--ui-font'),
         },
       }}
     >
@@ -471,13 +478,14 @@ function GlobalHeader({ currentUser }) {
   const userName = formatUserName(currentUser) || 'Пользователь';
 
   return (
-    <div className="global-header">
-      <div className="title-kicker">
-        <a className="home-link" href={homeUrl} title="На главную ERP" aria-label="На главную ERP">
+    <div className="ui-topmenu">
+      <div className="ui-topmenu-brand">
+        <a href={homeUrl} title="На главную ERP" aria-label="На главную ERP">
           <HomeOutlined />
         </a>
-        <p className="eyebrow">Сервис-центр</p>
+        <strong>СЕРВИС-ЦЕНТР</strong>
       </div>
+      <div className="ui-topmenu-actions">
       <Dropdown
         menu={{
           items: [
@@ -490,11 +498,12 @@ function GlobalHeader({ currentUser }) {
         placement="bottomRight"
         trigger={['hover']}
       >
-        <div className="user-profile" title="Текущий пользователь">
-          <Avatar size={23} shape="square" className="profile-avatar">{userName.charAt(0)}</Avatar>
-          <strong>{userName}</strong>
+        <div className="ui-topmenu-user" title="Текущий пользователь">
+          <span className="ui-topmenu-initial">{userName.charAt(0)}</span>
+          <div>{userName}</div>
         </div>
       </Dropdown>
+      </div>
     </div>
   );
 }
@@ -720,7 +729,7 @@ function RequestsListPage({ currentUser }) {
     <main className="app-shell list-shell">
       <div className="sticky-controls">
         <GlobalHeader currentUser={currentUser} />
-        <header className="topbar">
+        <header className="topbar ui-pagebar ui-pagebar--split">
           <div>
             <h1>Заявки на ремонт</h1>
           </div>
@@ -738,7 +747,7 @@ function RequestsListPage({ currentUser }) {
       </div>
 
       <section className="table-wrap">
-        <table className="requests-table">
+        <table className="requests-table ui-table">
           <thead>
             <tr>
               <th>{columnInput('id', 'ID', 'number')}</th>
@@ -820,10 +829,11 @@ function RequestsListPage({ currentUser }) {
         )}
       </section>
 
-      <section className="table-pagination" aria-label="Пагинация заявок">
+      <section className="ui-pagination" aria-label="Пагинация заявок">
         <Pagination current={page} pageSize={pageSize} total={paginationMeta.total}
-          showTotal={(total) => `Всего: ${total}`} showSizeChanger={paginationMeta.total > 30 || pageSize !== 30}
-          pageSizeOptions={[30, 50, 100]} showQuickJumper={paginationMeta.lastPage > 5}
+          showTotal={(total) => `Всего: ${total}`} showSizeChanger={{ showSearch: false }}
+          pageSizeOptions={[30, 50, 100]} showQuickJumper
+          locale={{ items_per_page: '/ стр.', jump_to: 'Перейти', page: 'Страница' }}
           onChange={(nextPage, nextSize) => {
             setPageSize(nextSize);
             setPage(nextSize === pageSize ? nextPage : 1);
@@ -1496,7 +1506,7 @@ function RequestPage({ currentUser, requestId }) {
       {notificationContext}
       <div ref={headerRef} className="sticky-controls detail-sticky-controls">
         <GlobalHeader currentUser={currentUser} />
-        <header className="topbar detail-header">
+        <header className="topbar detail-header ui-pagebar ui-pagebar--split">
           <div className="detail-title">
             <Button className="back-button" aria-label="Назад" icon={<ArrowLeftOutlined />} onClick={() => window.close()} />
             {isLoading ? (
@@ -1642,7 +1652,7 @@ function RequestPage({ currentUser, requestId }) {
                 </div>
                 {parts.some(isVisiblePart) && (
                   <div className="parts-table-wrap">
-                    <table className="parts-table">
+                    <table className="parts-table ui-table">
                     <thead>
                       <tr>
                         <th>Тип</th>
@@ -2051,7 +2061,7 @@ function DetailSkeleton() {
           </div>
         </div>
         <div className="parts-table-wrap">
-          <table className="parts-table">
+          <table className="parts-table ui-table">
             <thead>
               <tr>
                 {Array.from({ length: 7 }).map((_, index) => (
