@@ -1,6 +1,19 @@
 ﻿import React, { useEffect, useState } from 'react';
-import { ArrowLeftOutlined, DownloadOutlined, DownOutlined, HomeOutlined, PlusOutlined, PrinterOutlined, SaveOutlined, DeleteOutlined, RollbackOutlined, SendOutlined, ShoppingCartOutlined } from '@ant-design/icons';
-import { AutoComplete, Button, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Pagination, Select, Spin, Switch, notification } from 'antd';
+import {
+    ArrowLeftOutlined,
+    DownloadOutlined,
+    DownOutlined,
+    HomeOutlined,
+    PlusOutlined,
+    PrinterOutlined,
+    SaveOutlined,
+    DeleteOutlined,
+    RollbackOutlined,
+    SendOutlined,
+    ShoppingCartOutlined,
+    CopyOutlined
+} from '@ant-design/icons';
+import { AutoComplete, Button, ConfigProvider, DatePicker, Dropdown, Input, InputNumber, Pagination, Select, Spin, Switch, notification, Menu  } from 'antd';
 import { useRef } from 'react';
 import ruRU from 'antd/locale/ru_RU';
 import dayjs from 'dayjs';
@@ -10,6 +23,7 @@ import 'antd/dist/reset.css';
 import './styles.css';
 import './common-theme.css';
 import './theme-adapter.css';
+import { useLocation, Link } from 'react-router-dom';
 
 // Ant Design also reads its tokens from the shared CSS theme.
 const themeStyles = getComputedStyle(document.documentElement);
@@ -180,6 +194,11 @@ const printDocumentItems = [
   { key: 'completed-repair-act', label: 'Акт ремонта', aclIds: [79], minimumStatus: 400 },
   { key: 'invoice-request', label: 'Заявка на счет', aclIds: [79, 80], minimumStatus: 600 },
 ];
+
+const menu = [
+    { key: '/', icon: <CopyOutlined />, label: <a href="/">Заявки</a> },
+];
+
 
 const requestStatusRoadmap = [
   { number: 100, status: 'В обработке', role: 'Склад', completionLabel: 'Заявка обработана' },
@@ -476,6 +495,7 @@ function AppRoot() {
 
 function GlobalHeader({ currentUser }) {
   const userName = formatUserName(currentUser) || 'Пользователь';
+    const { pathname } = window.location.pathname;
 
   return (
     <div className="ui-topmenu">
@@ -484,6 +504,13 @@ function GlobalHeader({ currentUser }) {
           <HomeOutlined />
         </a>
         <strong>СЕРВИС-ЦЕНТР</strong>
+          <Menu
+              mode="horizontal"
+              items={menu}
+              selectedKeys={[pathname]}
+              style={{ flex: 1, minWidth: 0 }}
+              disabledOverflow
+          />
       </div>
       <div className="ui-topmenu-actions">
       <Dropdown

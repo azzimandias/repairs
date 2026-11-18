@@ -204,6 +204,7 @@ html[data-page-theme="main"] :is(.ui-card-body, .ant-card-body) {
 html[data-page-theme="main"] .ui-topmenu .ant-menu-horizontal > .ant-menu-item > .ant-menu-title-content,
 html[data-page-theme="main"] .ui-topmenu .ant-menu-horizontal > .ant-menu-submenu > .ant-menu-submenu-title > .ant-menu-title-content {
     font-size: var(--ui-nav-tab-size);
+    font-weight: var(--ui-heading-weight);
 }
 
 html[data-page-theme="main"] .ui-topmenu-sticky {
@@ -233,6 +234,12 @@ html[data-page-theme="main"] .ui-topmenu {
     height: var(--ui-nav-height);
     margin: 0;
     box-shadow: none;
+}
+
+html[data-page-theme="main"] .ui-topmenu .ant-menu-horizontal {
+    flex: 1;
+    min-width: 0;
+    border-bottom: none;
 }
 
 html[data-page-theme="main"] .ui-topmenu-brand {
