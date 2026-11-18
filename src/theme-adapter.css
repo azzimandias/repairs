@@ -32,7 +32,6 @@ html[data-page-theme="main"] {
   .table-wrap, .detail-block, .roadmap-card {
     border-color: var(--ui-border); border-radius: var(--ui-card-radius); background: var(--ui-surface); box-shadow: var(--ui-card-shadow);
   }
-  .list-shell .table-wrap { margin-top: var(--ui-bar-gap); }
   .ui-table { color: var(--ui-text); font-size: var(--ui-text-size); }
   .ui-table td { color: var(--ui-text); font-size: var(--ui-text-size); border-right-color: var(--ui-divider); }
   .ui-table th { text-transform: none; }

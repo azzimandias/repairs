@@ -379,11 +379,15 @@ select {
 
 .table-wrap,
 .detail-block {
-  border: 1px solid #cfe0f2;
+  border-left: 1px solid #cfe0f2;
+  border-right: 1px solid #cfe0f2;
+  border-bottom: 1px solid #cfe0f2;
   border-radius: 8px;
   background: #fbfdff;
   box-shadow: 0 14px 34px rgb(37 99 180 / 8%);
 }
+
+.detail-block { border-top: 1px solid #cfe0f2; }
 
 .table-wrap {
   flex: 1 1 auto;
@@ -399,6 +403,8 @@ select {
 
 .requests-table {
   table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 th,
@@ -1852,7 +1858,7 @@ td { color: #243244; font-size: 12px; }
   background: white;
   flex-shrink: 0;
 }
-.list-shell .table-wrap { flex: 0 1 auto; margin-top: 8px; border-radius: 4px 4px 0 0; }
+.list-shell .table-wrap { flex: 0 1 auto; border-radius: 4px 4px 0 0; }
 .list-shell .table-pagination {
   flex: none;
   flex-wrap: wrap;
